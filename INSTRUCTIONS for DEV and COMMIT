@@ -1,0 +1,10 @@
+DEVELOPMENT
+cd /users/franciscoreis/AirVideos.xyz
+npm run dev
+
+
+
+
+COMMIT
+npm run build         # get dist/
+# deploy dist/ to GitHub Pages / your non-Node server
