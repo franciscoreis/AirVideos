@@ -75,7 +75,6 @@ const THREE = {
 }
 window.THREE = THREE
 
-
 var mapEntityIDtoEntity = new Map()
 window.mapEntityIDtoEntity = mapEntityIDtoEntity
 
@@ -243,7 +242,10 @@ World.create(document.getElementById('scene-container'), {
   features: { locomotion: false, grabbing: true, physics: false, sceneUnderstanding: true },
 
 }).then((world) => {
+
+  window.world = world
   const { camera } = world;
+
 
 
   camera.position.set(0, 1, 0.5);

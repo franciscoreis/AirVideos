@@ -12,28 +12,31 @@
     <script type="text/javascript" src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
     <script type="text/javascript" src="/src/airvideos.js"></script>
 
+    <style>
+      .wm{padding:0px;margin:0px;border-spacing:0;vertical-align:middle}
+      .text_ellipsis{text-overflow:ellipsis;overflow:hidden;white-space:nowrap}
+    </style>
 
-    <script type="module" crossorigin src="./assets/index-Dflf4zJF.js"></script>
+
+    <script type="module" crossorigin src="./assets/index-bFyQflAq.js"></script>
   </head>
-  <body style="margin: 0">
+  <body style="margin: 0;font-family:Calibri,Arial,sans-serif">
   <div id="for_sibling_of_parent_element"></div><div id="for_parent_element" style="position: relative">
     <div id="scene-container"></div>
-    <div id="2D-info-div" style="position: absolute;bottom:0px;left:0px;width:100%;background:#fff;user-select:none">
+    <div id="2D-info-div" style="position: absolute;top:0px;left:0px;width:100%;background:#fff;user-select:none">
       <center>
-        <div id="show_videos_in_2D"></div>
         <div id="top_message_duration"></div>
         <br><img src="https://storage.googleapis.com/cdniverse/AirVideosXYZ/images/airvideos_text_5.svg" style="max-height:2em;max-width:90%" class="myImgLoadEventAdded">
         <br><a target="_blank" href="https://youtube.com"><img src="https://storage.googleapis.com/cdniverse/images/1298778_youtube_play_video_icon.svg" style="height:30px;cursor:pointer;vertical-align: middle" title="YouTube web site" alt="YouTube web site" class="myImgLoadEventAdded"></a>
             &nbsp;<input class="demo_inputToReceiveYoutubeURLorCode" id="inputToReceiveYoutubeURLorCode" onchange="event.stopPropagation();changedInputToReceiveYoutubeURLorCode(undefined, event)" type="text" style="width:250px" placeholder=" youtube url, youtube code">
             <b onclick="event.stopPropagation();changedInputToReceiveYoutubeURLorCode(undefined, event)" style="color:red;font-size:30px;vertical-align:text-bottom;cursor:pointer;vertical-align: bottom">&nbsp;+&nbsp;</b>
-        <br>&nbsp;
+        <div style="overflow: auto;max-height: 80vh; width: 100vw; box-sizing: border-box"><div id="show_videos_in_2D"></div></div>
       </center>
     </div>
     <script>
       initialize_airvideos()
     </script>
   </div>
-
-
+  <div popover id="my-popover"></div>
   </body>
 </html>
