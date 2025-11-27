@@ -8,6 +8,8 @@ const VideosCut = {
   videosSelected: new Map()
 }
 
+const mapBaseAppID_to_AirVideo = new Map()
+
 var lang = 0//navigator.language
 var languageBeforeLogin = lang
 var regionIndex = 0 //USA
@@ -20,14 +22,21 @@ const showKeyword = ""
 
 const isInLocalhost = location.hostname.indexOf("localhost") !== -1
 const httpAddress = isInLocalhost ? "http://localhost:8080" : "https://umniverse.com"
+const httpLinkAddress = isInLocalhost ? "http://localhost:8081" : "https://airvideos.xyz"
+const httpLinkAddressWithParameters = isInLocalhost ? "https://localhost:8081/?" : "https://airvideos.xyz/?" //must use https locally!?!
+
 const cdniverse = "https://storage.googleapis.com/cdniverse/";
 var globalElementToHide
 
+var uploadedAirVideosBaseApp
 const PROGRAM_VERSION = 0
     , versionOnMyCompiler = 0
     , origServletInfo = "/"
     , uniqueSessionUID = crypto.randomUUID()
 
+let INITIAL_baseAppID
+
+var AIRVIDEOSIWSDK_COMMAND = 170 // COMMAND_WITHOUT_LOGIN
 var nomeUtilizador=""
 var userID
 var loginClientID
@@ -37,6 +46,8 @@ var cloudStorageLocation, cloudStorageLocationName
 var confirmBeforeUnload
 
 var deviceUniqueID
+
+var showingWallsAndTable
 
 var lastPopoverUniqueID, lastPopoverContent
 
@@ -345,17 +356,34 @@ const YTcollections = [
 		  ]}
 ]
 
+//------------------------------------
+function colorTrace(msg, color)
+{
+    consoleLogIfIsInLocalhost("%c" + msg, "color:" + color + ";font-weight:bold;")
+}
 //-----------------------------------------------------------------
 function initialize_airvideos()
 {
+const params = new URLSearchParams(window.location.search)
+
+INITIAL_baseAppID = params.get("baseappid")
 
 
-
+if(INITIAL_baseAppID)
+  {
+    submit_AIRVIDEOSIWSDK_COMMAND("GET_BASEAPP_ID", INITIAL_baseAppID)
+    showingWallsAndTable = false
+  }
+else
+{
+  showingWallsAndTable = true
 const codes = window.localStorage.getItem("codes")
 
-  if(codes) {
+  if(codes)
+  {
     let lastPos = 0
-    while (lastPos < codes.length) {
+    while (lastPos < codes.length)
+    {
       let pos = codes.indexOf(" ", lastPos)
       const code = codes.slice(lastPos, pos)
       lastPos = pos + 1
@@ -363,10 +391,15 @@ const codes = window.localStorage.getItem("codes")
       const numChars = parseInt(codes.slice(lastPos, pos))
       lastPos = pos + 1 + numChars
       const object = JSON.parse(codes.slice(pos + 1, lastPos))
+      object.code = code  //just in case (old versions)
       VideosCut.videosSelected.set(code, object)
     }
     updateVideosIn2D()
   }
+
+  if( VideosCut.videosSelected.size === 0)
+    importFromPresetLists()
+}
 
 }
 //-----------------------------------------------------------------
@@ -456,7 +489,7 @@ function changedInputToReceiveYoutubeURLorCode(code, event)
     else validYoutubeVideoId(ytCode).then((success) =>
       {
         $("#inputToReceiveYoutubeURLorCode").val("")
-        VideosCut.videosSelected.set(ytCode, {})
+        VideosCut.videosSelected.set(ytCode, {code: ytCode})
         updateVideosIn2D()
       })
 }
@@ -472,18 +505,19 @@ function updateVideosIn2D()
 let s = ""
 let codes = ""
 const groupNameToS = new Map()
-for(let [code, object] of VideosCut.videosSelected)
+for(let [code, video] of VideosCut.videosSelected)
 {
-    const objectStr = JSON.stringify(object)
-    codes += code + " " + objectStr.length + " " + objectStr
+    const objectStr = JSON.stringify(video)
+    if(!video.isFromCloud)
+        codes += code + " " + objectStr.length + " " + objectStr
 
-    const group = object.groupName + " - " + object.subGroupName
+    const group = video.groupName + " - " + video.subGroupName
     let ID_toS = groupNameToS.get(group)
     if(!ID_toS)
-        ID_toS = {toS: "", groupID: object.groupID, groupName: object.groupName, subGroupName: object.subGroupName}
+        ID_toS = {toS: "", groupID: video.groupID, groupName: video.groupName, subGroupName: video.subGroupName}
     ID_toS.toS += "<table class='wm' style='display:inline-table;border:2px solid #red;margin:5px'><tr><th>"
           + "<table class='wm' style='width:100%'><td class='wm' style='width:1px;cursor:pointer' title='XR AirVideos!'><img onClick='world.launchXR()' src='https://storage.googleapis.com/cdniverse/images/WebXR/webxr.png' style='height:24px'></td>"
-          + "<td class='wm text_ellipsis' style='max-width:150px'>" + (object.title || code) + "</td>"
+          + "<td class='wm text_ellipsis' style='max-width:150px'>" + (video.title || code) + "</td>"
           + "<td class='wm' onClick='removeYouTubeCode(\""+ code +"\")' style='cursor:pointer;color:red;width:1px'><b>&nbsp;X&nbsp;</b></td></tr></table>"
           + "</th></tr>"
         + "<tr><td><a target='_blank' href='"+youtubeURLfromCode(code)+"'><img class='img_airvideos_code_"+ code +"' src='"+getYoutubeImageURL(code)+"' crossorigin='anonymous' style='width:200px;aspect-ratio:200/150'></a></td></tr>"
@@ -536,7 +570,7 @@ function importVideosFromID(groupID, subGroup)
                const pos = video.indexOf(' ')
                const ytCode = video.slice(0, pos)
                const title = video.slice(pos + 1)
-               VideosCut.videosSelected.set(ytCode, {title: title, groupID: groupID, groupName: collection.group, subGroupName: collection.subGroup})
+               VideosCut.videosSelected.set(ytCode, {code: ytCode, title: title, groupID: groupID, groupName: collection.group, subGroupName: collection.subGroup})
            }
    updateVideosIn2D()
 }
@@ -574,9 +608,9 @@ if(!id)
 return "https://img.youtube.com/vi/" + id + "/"+ (mini ? "default" : "0") + ".jpg"
 }
 //------------------------------------------
-function showPopoverWithContent(s, uniqueID)
+function showPopoverWithContent(s, uniqueID, doNotClose)
 {
-    if(uniqueID && uniqueID === lastPopoverUniqueID && s === lastPopoverContent)
+    if(!doNotClose && uniqueID && uniqueID === lastPopoverUniqueID && s === lastPopoverContent)
         return closePopover(uniqueID)
 
     lastPopoverUniqueID = uniqueID
@@ -593,6 +627,8 @@ function closePopover(uniqueID)
     lastPopoverUniqueID = undefined
     const popover = document.getElementById("my-popover")
     popover.hidePopover()
+
+    return true
 }
 //----------------------------------------------------
 function loggedIn(showMessageIfNotLoggedIn, showMessageIfLoggedIn, showButtonToLoginLogoutInMessage = true)
@@ -615,17 +651,18 @@ function pageLogin()
 	if(loggedIn())
 		return ""
 
-	let s = "<table class='td_showOrHideRegisterNewUser' style='width:100%'>"
+	let s = "<center><br>Login to <i style='color:green'>store</i> configurations<br>and <i style='color:green'>share</i> videos with friends!"
+        + "<br><br><table class='td_showOrHideRegisterNewUser' style='width:100%'>"
 		+ "<tr><td style='text-align:right'><b>email</b>"
 		  + "</td><td><input class='username' type='email' onChange='onChangeTextInputSetAllInputsWithSelector(this, \".username\")' autocomplete='username'" + attributeWithTranslation("placeholder", TLtranslateFromTo("email address"))+" style='width:15em' onKeyUp='return checkForEnter(event, 1)'></td></tr>"
 		+ "<tr><td style='text-align:right'><b>"+TLtranslateFromTo("code")
-			+ '</td><td><input class="password" type="password" onChange=\'onChangeTextInputSetAllInputsWithSelector(this, \".password\")\' onKeyUp="if(event.keyCode == 13)clickNextButton(this)" autocomplete="current-password" '+ attributeWithTranslation("placeholder", TLtranslateFromTo("password")) +' style="width:15em"  onKeyUp="return checkForEnter(event, 2)"></td></tr>'
+			+ '</td><td><input class="password" type="password" onChange=\'onChangeTextInputSetAllInputsWithSelector(this, \".password\")\' onKeyUp="if(event.keyCode == 13)myLogin()" autocomplete="current-password" '+ attributeWithTranslation("placeholder", TLtranslateFromTo("password")) +' style="width:15em"  onKeyUp="return checkForEnter(event, 2)"></td></tr>'
 		+ "</table><table style='width:100%'><tr>"
 		+ '<td class="td_showOrHideRegisterNewUser" onClick="registerNewUser()" style="padding:10px;color:blue;cursor:pointer"><a title="create new user" style="font-size:14px">'+TLtranslateFromTo("new user")+'</a></td>'
 		+ '<td><button class="save" id="loginButton" onClick="myLogin()" >&nbsp;'+TLtranslateFromTo("login")+'&nbsp;</button></td>'
 		+ '<td><button class="lightbackground" id="recoverButton" title="In case you forgot your password" onClick="myRecoverPassword()">&nbsp;'+TLtranslateFromTo("change")+'&nbsp;</button></td>'
 		+ "</tr></table>"
-        + "<center><a target='_blank' href='https://umniverse.com' style='text-decoration:none'><p style='display:inline;font-size:70%; width:100%;height:100%'>login powered by &nbsp; </p><img onClick='umniverse()' src='" + cdniverse +"images/umniverse/umniverse_text3.svg' style='cursor:pointer;max-height:1em;vertical-align:text-top' title='powered by Umniverse' alt='logo Umniverse'></a></center>"
+        + "<a target='_blank' href='https://umniverse.com' style='text-decoration:none'><p style='display:inline;font-size:70%; width:100%;height:100%'>login powered by &nbsp; </p><img onClick='umniverse()' src='" + cdniverse +"images/umniverse/umniverse_text3.svg' style='cursor:pointer;max-height:1em;vertical-align:text-top' title='powered by Umniverse' alt='logo Umniverse'></a></center>"
 
 	showPopoverWithContent(s, "popover_login")
 }
@@ -765,6 +802,21 @@ function myRecoverPassword()
   mySubmit(true);
 }
 //----------------------------------------------------------------------------------------
+function submit_AIRVIDEOSIWSDK_COMMAND(command, param1, param2, param3, param4, param5, param6)
+{
+  clearHs()
+  h1=AIRVIDEOSIWSDK_COMMAND
+  h5=command
+  h6=param1
+  h7=param2
+  h8=param3
+  h9=param4
+  h10=param5
+  h11=param6
+  //h6=showMenu
+  mySubmit(true);
+}
+//----------------------------------------------------------------------------------------
 function clearHs()
 {
 h5 = null
@@ -809,7 +861,6 @@ function checkForEnter(e, i)
     case 2: myLogin(); break;
     case 11: ById("password").focus(); break;
     case 12: ById("password2").focus(); break;
-    case 13: gotoOnClick(130); break;
     case 20: testAppAPIurl();
 	}
   }
@@ -996,10 +1047,12 @@ let returnFromCacheDivOnServer = false //to ignore some commands that should not
 
 const END_OF_COMMAND = "@ -&| ? @";
 
-const SHOW_MESSAGE_ON_SOS = 3
+const SHOW_MESSAGE = 2
+    , SHOW_MESSAGE_ON_SOS = 3
     , LOGIN_FAILED = 4
     , USER_CREATE_SUCCESS = 6
-    , LOGIN_SUCCESSFUL=5
+    , LOGIN_SUCCESSFUL = 5
+    , EVAL_JSCODE = 95
 
 let returnValue = "OK"
 
@@ -1094,6 +1147,9 @@ for(let command of commands)
 //MAIN round
     switch (type) //if CRASHES on breakpoint debug then put break in a line before! (tried setTimeout() with no success)
     {
+        case SHOW_MESSAGE:
+            alert(sObject)
+            break
         case SHOW_MESSAGE_ON_SOS:
            showMessageOnSOSall += (showMessageOnSOSall ? "<br>" : "") + TLtranslate(sObject)
            showMessageOnSOStotalTime += parseInt(objectIDS)
@@ -1150,6 +1206,9 @@ for(let command of commands)
        case USER_CREATE_SUCCESS:
            showMessageErrorOnSOSforDuration(sObject, 5000)
            break
+        case EVAL_JSCODE:
+            myEval(sObject)
+            break
         default: consoleLogIfIsInLocalhost("TYPE IN EXTRACTDATA: " + type)
     }
 }//for
@@ -1206,4 +1265,297 @@ function deviceUID()
   return deviceUniqueID
 }
 //------------------------------------------
+function AirVideos_receiveDataFromUmniverse(s)
+{
+s = decodeURIComponent(s)
+
+let pos = s.indexOf(' ')
+AIRVIDEOSIWSDK_COMMAND = s.slice(0, pos)
+let lastPos = pos + 1
+
+pos = s.indexOf(' ', lastPos)
+const numBaseAps = parseInt(s.slice(lastPos, pos))
+lastPos = pos + 1
+for(let i = 0; i < numBaseAps; i++)
+{
+    pos = s.indexOf(" ", lastPos)
+    const baID = s.slice(lastPos, pos)
+    lastPos = pos + 1
+    pos = s.indexOf(" ", lastPos)
+    let numChars = parseInt(s.slice(lastPos, pos))
+    lastPos = pos + 1 + numChars
+    const appInfo = JSON.parse(s.slice(pos + 1, lastPos))
+
+    pos = s.indexOf(" ", lastPos)
+    numChars = parseInt(s.slice(lastPos, pos))
+    lastPos = pos + 1 + numChars
+    const data = s.slice(pos + 1, lastPos)
+
+    let baseApp = new BaseApp(baID, data)
+    baseApp.appInfo = appInfo
+}
+
+if(numBaseAps > 0 || VideosCut.videosSelected.size > 0)
+{
+    if(loggedIn())
+        manageCloudObjects(true)
+    else
+    {
+       for(let [baID, baseApp] of mapBaseAppID_to_AirVideo)
+         for(let [code, video] of baseApp.object.videos)
+         {
+             video.isFromCloud = true
+             VideosCut.videosSelected.set(code, video)
+         }
+        updateVideosIn2D()
+    }
+}
+
+}
+//------------------------------------------
+function uploadLocalVideosToCloud()
+{
+    const groupName = $("#airvideos_groupName_to_upload").val().trim();
+    if(!groupName)
+    {
+        showMessageErrorOnSOSforDuration("must have a group name")
+        $("#airvideos_groupName_to_upload").focus()
+        return
+    }
+
+    const airVideosBaseApp = {
+        groupName: groupName,
+        videos: JSON.stringify(Array.from(VideosCut.videosSelected.entries())),
+        planesPersistentInfo: JSON.stringify(Array.from(mapWallTableIDtoPersistentInfo.entries()))
+        }   
+
+    uploadedAirVideosBaseApp = {
+        groupName: groupName,
+        videos: VideosCut.videosSelected,
+        planesPersistentInfo: mapWallTableIDtoPersistentInfo,
+    }
+
+    const baseAppID = ""
+
+    submit_AIRVIDEOSIWSDK_COMMAND("UPLOAD", baseAppID, JSON.stringify(airVideosBaseApp))
+    
+}
+//------------------------------------------
+function refresh_manageCloudObjects()
+{
+    if(closePopover("manageCloudObjects"))
+        manageCloudObjects()
+}
+//------------------------------------------
+function deleteCloudBaseApp(baseAppID)
+{
+    if(confirm("Delete object forever?"))
+        submit_AIRVIDEOSIWSDK_COMMAND("DELETE", baseAppID)
+}
+//------------------------------------------
+function showBaseappIDvideosAndPlanes(baseAppID)
+{
+   const ba = mapBaseAppID_to_AirVideo.get(baseAppID)
+
+   VideosCut.videosSelected = ba.object.videos
+   MyPlane.loadPlanesPersistentInfo(ba.object.planesPersistentInfo)
+
+   updateVideosIn2D()
+
+}
+//------------------------------------------
+function makeBaseappIDpublic(baseAppID, publicNOTprivate)
+{
+    submit_AIRVIDEOSIWSDK_COMMAND("MAKE_PUBLIC", baseAppID, publicNOTprivate)
+}
+//------------------------------------------
+function AirVideos_commandFromServer(command, p1)
+{
+    switch(command)
+    {
+        case "UPLOADED":
+            new BaseApp(p1, uploadedAirVideosBaseApp)
+            break
+        case "DELETED":
+            mapBaseAppID_to_AirVideo.delete(p1)
+            break
+    }
+    refresh_manageCloudObjects()
+}
+//------------------------------------------
+function manageCloudObjects(doNotClose)
+{
+   	if(!loggedIn())
+		return
+
+    let s = "<table style='width:100%'><tr><th>Local videos =  <b style='color:red'>" + VideosCut.videosSelected.size + "</b></th><th>Cloud objects = <b style='color:green'>" + mapBaseAppID_to_AirVideo.size + "</b></th></tr></table>"
+
+    if(VideosCut.videosSelected.size > 0)
+        s += "<br>Upload local videos to cloud<br><input id='airvideos_groupName_to_upload' style='width:150px' placeHolder='Group Name'><button onClick='uploadLocalVideosToCloud()'>upload</button>";
+
+    if(mapBaseAppID_to_AirVideo.size)
+    {
+        s += "<br><br><table border=1><th>Group Name</th><th>videos</th><th>public</th><th>delete</th></tr>"
+        for(let [baID, baseApp] of mapBaseAppID_to_AirVideo)
+        {
+            s += "<tr><td onClick='showBaseappIDvideosAndPlanes(\""+ baID +"\")' style='cursor:pointer;color:blue'>" + baseApp.object.groupName + "</td><td>" + baseApp.object.videos.size + "</td>"
+                + "<td>&nbsp;<input onClick='makeBaseappIDpublic(\""+ baID +"\", this.checked)' type='checkbox' "+ (baseApp.appInfo.public ? "checked" : "")+" title='make the link public or private'> &nbsp;<a target='_blank' href='" + httpLinkAddressWithParameters + "baseappid="+ baID +"'>link</a>&nbsp;</td>"
+                + "<td><b onClick='deleteCloudBaseApp(\""+ baID +"\")' style='color:red;cursor:pointer'>&nbsp;X&nbsp;</td></tr>"
+                + "</tr>"
+        }
+        s += "</table>"
+    }
+
+    showPopoverWithContent("<center>" + s + "</center>", "manageCloudObjects", doNotClose)
+}
+//------------------------------------
+function myEval(sObject, doNotShowError)
+{
+if(!sObject)
+	return false
+	//see https://en.wikipedia.org/wiki/Nested_quotation for the logic is    "   \"   \\\"  \\\"   \"   "
+	//good example at: showNotHideSetText() of Java Class ScreensMasterSlave
+try
+{
+sObject = sObject.replaceAll("&#37;","%")
+eval(sObject)
+}
+catch(e)
+{
+	 sObject = sObject.replaceAll("\\\"",'"')
+	 try
+	 {
+	 eval(sObject)
+	 }
+	 catch(e)
+	 {
+		 sObject = sObject.replaceAll("\\\'","'")
+		 try
+		 {
+		 eval(sObject)
+		 }
+		 catch(e)
+		 {
+			 sObject = sObject.replace(/\"/g,"&#34;")
+			 try
+			 {
+			 eval(sObject)
+			 }
+			 catch(e)
+			 {
+			 if(!doNotShowError)
+			    colorTrace(e.stack, "red")
+			 return false
+			 }
+		 }
+	 }
+}
+return true
+}
+//------------------------------------------
+//------------------------------------------
+class Primiti
+    {
+	static betweenChars(s, ch, firstNum = 1, lastNum = 2)
+	{
+		if(!s || firstNum >= lastNum)
+			return ""
+
+		let lastPos = 0
+		while(true)
+		{
+			const pos = s.indexOf(ch, lastPos)
+			if(pos === -1)
+				return ""
+			lastPos = pos + 1
+			firstNum--
+			lastNum--
+
+			if(firstNum === 0)
+				while(true)
+				{
+					let lastPos2 = pos + 1
+					const pos2 = s.indexOf(ch, lastPos2)
+					if(pos === -1)
+						return ""
+					lastNum--
+					if(pos2 === -1)
+						return s.slice(lastPos)
+					if(lastNum === 0)
+						return s.slice(lastPos, pos2)
+					lastPos2 = pos + 1
+					lastNum--
+				}
+
+		}
+
+		return ""
+
+	}
+}//class Primiti
+//--------------------------------------------
+class BaseApp
+{
+   constructor(baID, dataORobject)
+   {
+       const ba = this
+       if(isString(dataORobject))
+       {
+       ba.object = JSON.parse(dataORobject)
+       ba.object.videos = new Map(JSON.parse(ba.object.videos))
+       ba.object.planesPersistentInfo = ba.object.planesPersistentInfo
+                                        ? new Map(JSON.parse(ba.object.planesPersistentInfo))
+                                        : new Map()
+       if(INITIAL_baseAppID) //first time
+            {
+                INITIAL_baseAppID = undefined
+                MyPlane.loadPlanesPersistentInfo(ba.object.planesPersistentInfo)
+            }
+       }
+       else ba.object = dataORobject
+
+       ba.appInfo = ba.appInfo || {public: false}
+       mapBaseAppID_to_AirVideo.set(baID, ba)
+   }
+
+}//class BaseApp
+//-------------------------------------------
+function showInstructions()
+{
+    let s = "<center><br><b>Instructions in XR</b>"
+        + "<br><br><i style='color:red'>Click on the videos:</i>"
+        + "<br>one click - selects the video"
+        + "<br>second click - selects the group"
+        + "<br>third click - unselects the group"
+        + "<br>click in another selected - selects/unselects "
+        + "<br><br><i style='color:red'>Click on the walls or tables:</i>"
+        + "<br>no video selected - free videos are joined"
+        + "<br>other videos selected - joins those videos"
+        + "<br>owned videos selected - rearranges those videos"
+        + "<br>tables no videos selected - rearranges videos"
+        + "<br>walls no videos selected - switches area"
+        + "<br><br><i style='color:red'>Click on Meta's robot:</i>"
+        + "<br>to show or hide walls and tables"
+        + "<br><br>ENJOY AND SHARE YOUR VIDEOS"
+        + "<br><br><b style='vertcial-align:middle'>Enter XR clicking on </b>"
+        + '<img onclick="world.launchXR()" src="https://storage.googleapis.com/cdniverse/images/WebXR/webxr.png" style="height:34px;vertical-align:middle;cursor:pointer"/>'
+        + "<br>&nbsp;</center>"
+
+    showPopoverWithContent(s, "showInstructions")
+}
+//-------------------------------------------
+function showOrHideWallsTables(showNOThide)
+{
+if(showNOThide === undefined)
+    showNOThide = !showingWallsAndTable
+showingWallsAndTable = showNOThide
+for(let [id, entity] of mapEntityIDtoMyPlane)
+    entity.object3D.visible = showingWallsAndTable
+
+}
+//-------------------------------------------
+function ById(id)
+{
+    return document.getElementById(id) || $("."+id)[0]
+}
 

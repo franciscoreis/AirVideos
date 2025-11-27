@@ -16,36 +16,39 @@
     <style>
       .wm{padding:0px;margin:0px;border-spacing:0;vertical-align:middle}
       .text_ellipsis{text-overflow:ellipsis;overflow:hidden;white-space:nowrap}
+      th,td{text-align: center}
     </style>
 
 
-    <script type="module" crossorigin src="./assets/index-Bt0o8TDH.js"></script>
+    <script type="module" crossorigin src="./assets/index-CE2GQ8y2.js"></script>
   </head>
-  <body style="margin: 0;font-family:Calibri,Arial,sans-serif">
+  <body onLoad='initialize_airvideos()' style="margin: 0;font-family:Calibri,Arial,sans-serif">
   <div id="for_sibling_of_parent_element"></div><div id="for_parent_element" style="position: relative">
     <div id="scene-container"></div>
     <div id="2D-info-div" style="position: absolute;top:0px;left:0px;width:100%;background:#fff;user-select:none">
       <center>
         <div id="top_message_duration"></div>
-        <br><img src="https://storage.googleapis.com/cdniverse/AirVideosXYZ/images/airvideos_text_5.svg" style="max-height:2em;max-width:90%" class="myImgLoadEventAdded">
-        &nbsp; <button class="hideWhenLogin" onclick="event.stopPropagation();pageLogin()" style="background-color:#fff" title="login"><img src="https://storage.googleapis.com/cdniverse/LoginLogout/nine_squares_squared_LOGIN.svg" style="height:22px" alt="login" class="myImgLoadEventAdded"></button>
-        <button class="showWhenLogin" onclick="event.stopPropagation();event.preventDefault();if(confirm('Logout?'))window.location.reload()" title="logout" style="display:none;cursor: pointer; background-color: rgb(255, 255, 255);"><img src="https://storage.googleapis.com/cdniverse/LoginLogout/nine_squares_squared_LOGOUT.svg" style="height:22px"></button>
+        <br>
+          <img src="https://storage.googleapis.com/cdniverse/images/assistant.png" title="Umniguru" onclick="event.stopPropagation(); showInstructions()" style="cursor: pointer; height:32px;vertical-align:middle">
+          &nbsp; <img src="https://storage.googleapis.com/cdniverse/AirVideosXYZ/images/airvideos_text_5.svg" style="max-height:2em;max-width:80%;vertical-align:middle" >
+        &nbsp; <button class="hideWhenLogin" onclick="event.stopPropagation();pageLogin()" style="background-color:#fff" title="login"><img src="https://storage.googleapis.com/cdniverse/LoginLogout/nine_squares_squared_LOGIN.svg" style="height:22px;vertical-align:middle" alt="login" ></button>
+        <nobr>
+          <button class="showWhenLogin" onclick="event.stopPropagation();event.preventDefault();if(confirm('Logout?'))window.location.reload()" title="logout" style="display:none;cursor: pointer; background-color: rgb(255, 255, 255);"><img src="https://storage.googleapis.com/cdniverse/LoginLogout/nine_squares_squared_LOGOUT.svg" style="height:22px"></button>
+          &nbsp;<img onClick="manageCloudObjects()" class="showWhenLogin" src="https://storage.googleapis.com/cdniverse/images/352277_cloud_queue_icon.svg" style="display:none;height:2em;vertical-align:bottom">
+        </nobr>
 
-        <br><a target="_blank" href="https://youtube.com"><img src="https://storage.googleapis.com/cdniverse/images/1298778_youtube_play_video_icon.svg" style="height:30px;cursor:pointer;vertical-align: middle" title="YouTube web site" alt="YouTube web site" class="myImgLoadEventAdded"></a>
+        <br><a target="_blank" href="https://youtube.com"><img src="https://storage.googleapis.com/cdniverse/images/1298778_youtube_play_video_icon.svg" style="height:30px;cursor:pointer;vertical-align: middle" title="YouTube web site" alt="YouTube web site" ></a>
             &nbsp;<input class="demo_inputToReceiveYoutubeURLorCode" id="inputToReceiveYoutubeURLorCode" onchange="event.stopPropagation();changedInputToReceiveYoutubeURLorCode(undefined, event)" type="text" style="width:250px" placeholder=" youtube url, youtube code">
             <b onclick="event.stopPropagation();changedInputToReceiveYoutubeURLorCode(undefined, event)" style="color:red;font-size:30px;vertical-align:text-bottom;cursor:pointer;vertical-align: bottom">&nbsp;+&nbsp;</b>
         <div style="overflow: auto;max-height: 80vh; width: 100vw; box-sizing: border-box"><div id="show_videos_in_2D"></div></div>
       </center>
     </div>
-    <div id="2D-info-div-bottom" style="position: absolute;bottom:20px;left:50%;transform:translate(-50%, 0);border-radius:10px;padding:10px;color:white;background:red;user-select:none;text-align: center">
+    <div id="2D-info-div-bottom" style="display:none;position: absolute;bottom:20px;left:50%;transform:translate(-50%, 0);border-radius:10px;padding:10px;color:white;background:red;user-select:none;text-align: center">
         <b style="line-height: 30px">HELLO to AirVideos.xyz</b>
       <br>Add Youtube videos and arrange
       <br>them in your home or office!
       <br><b style="line-height: 30px">Thanks to Meta\'s <a target="_blank" href="https://developers.meta.com/horizon/blog/immersive-web-sdk-new-era-spatial-web-development">IWSDK</a></b>
     </div>
-    <script>
-      initialize_airvideos()
-    </script>
   </div>
   <div popover id="my-popover"></div>
   <div class='container popups' align="center" style="display:none;position:fixed;top:10px;left:50%;transform:translate(-50%, 0);z-index:200000;background-color :Yellow;padding:0;width:72px;height:70px">
