@@ -1,10 +1,23 @@
+SO PROGRAMMERS HAVE A NICER TIME!
+
 DEVELOPMENT
 cd /users/franciscoreis/AirVideos.xyz
 npm run dev
 
-
-
-
-COMMIT
+UPLOAD WITHOUT GIT COMMIT
+cd /users/franciscoreis/AirVideos.xyz
 npm run build         # get dist/
+cp -R /users/franciscoreis/AirVideos.xyz/src /users/franciscoreis/AirVideos.xyz/dist
 # deploy dist/ to GitHub Pages / your non-Node server
+COPY TO GITHUB: Upload dist files
+
+BACKUP
+cd /users/franciscoreis
+zip -e -r AirVideos.xyz_20251115.zip AirVideos.xyz
+
+DIST LOCAL TEST
+Rename index.html to indexAirVideos.html
+copy dist contents to webapps
+
+WEBXR DEV IN TABLET CONNECTED TO HTTPS!!!
+https://192.168.1.65:8081     (ip in MacOS: ipconfig getifaddr en0)
