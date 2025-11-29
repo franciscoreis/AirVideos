@@ -21,6 +21,7 @@ export class PanelSystem extends createSystem({
 
       const xrButton = document.getElementById('xr-button');
       xrButton.addEventListener('click', () => {
+        console.log("PanelSystem click")
         if (this.world.visibilityState.value === VisibilityState.NonImmersive) {
           this.world.launchXR();
         } else {

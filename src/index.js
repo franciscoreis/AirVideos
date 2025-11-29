@@ -21,9 +21,10 @@ import {
   Pressed,
   MovementMode,
   Interactable,
-  PanelUI,
   PlaybackMode,
-  ScreenSpace
+  ScreenSpace,
+  PanelUI,
+  PanelDocument,
 } from '@iwsdk/core';
 
 import {
@@ -72,6 +73,10 @@ import { LoadingManager
     ,Color
     ,Euler
     ,MathUtils
+    ,Raycaster
+    ,Vector2
+    ,ArrowHelper
+    ,LinearFilter
 } from '@iwsdk/core';
 
 
@@ -84,6 +89,13 @@ import { RobotSystem } from './robot.js';
 
 import { MyVideo } from './myVideo.js';
 import { MyVideoSystem } from './myVideo.js';
+
+import { createDashboard
+        , DashboardTag
+        , DashboardButton
+        } from './dashboardWithRectangles.js';
+
+
 
 const USE_ANCHORS = false
 
@@ -118,6 +130,10 @@ const THREE = {
   ,Box3: Box3
   ,Euler: Euler
   ,MathUtils: MathUtils
+  ,Raycaster: Raycaster
+  ,Vector2: Vector2
+  ,ArrowHelper: ArrowHelper
+  ,LinearFilter: LinearFilter
 }
 window.THREE = THREE
 
@@ -129,6 +145,9 @@ window.mapEntityIDtoMyObject = mapEntityIDtoMyObject
 var mapWallTableIDtoPersistentInfo = new Map()
 window.mapWallTableIDtoPersistentInfo = mapWallTableIDtoPersistentInfo
 var loaded_mapWallTableIDtoPersistentInfo = {}
+
+var positionDashBoardNow = false
+window.dashboardButtons = new Set()
 
 const mapCodeToEntity = new Map()
 
@@ -180,72 +199,39 @@ window.addVideosNotYetAdded = async function()
   if(!mapCodeToEntity.get(code))
   {
   const headerHeight = 20
-
-  const img = $(".img_airvideos_code_" + code)[0]
-
-  const width = img.naturalWidth
-  const height = img.naturalHeight
-
-  const canvas = document.createElement('canvas')
-  canvas.width = width
-  canvas.height = height + headerHeight
-
-  const ctx = canvas.getContext('2d')
-
-  ctx.drawImage(img, 0, headerHeight, width, height)
-
-  // background
-  ctx.fillStyle = '#222';
-  ctx.fillRect(0, 0, canvas.width, headerHeight);
-
-  // some text
-  ctx.fillStyle = '#fff';
-  ctx.font = '20px sans-serif';
-  ctx.textAlign = 'left';
-  ctx.textBaseline = 'middle';
-  ctx.fillText(video.title, 10, headerHeight / 2);
-
-  // 2. Turn the canvas into a Three.js texture
-  const texture = new THREE.CanvasTexture(canvas)
-  texture.colorSpace = SRGBColorSpace
-  texture.needsUpdate = true
-
-  const material = new MeshStandardMaterial({
-    map: texture,
-    transparent: true,
-    side: 2,
-  });
-
-    // 3. Make a plane with the same aspect ratio as the image
-    const aspect = canvas.width / canvas.height;
-    const planeHeight = 1.0;              // 1 meter tall
-    const planeWidth = planeHeight * aspect;   // keep aspect ratio
-
-    //const geometry = new PlaneGeometry(planeWidth, planeHeight);
-    const geometry = new PlaneGeometry(1, -1)
-    //geometry.rotateX(-Math.PI / 2) // so as to avoid difference between planes and objects
-
-    geometry.scale(1, 1, 1);              // mirror on X in local space
-    geometry.computeVertexNormals();
-
-    const mesh = new Mesh(geometry, material);
-
+  const mesh = textureWithImage($(".img_airvideos_code_" + code)[0], video.title, headerHeight)
 
     const entity = world.createTransformEntity(mesh)
       .addComponent(Interactable)
-      .addComponent(MyVideo)
-      /* changes pointer down detection to every other click
+   //   .addComponent(Pressed) //need two clicks to activate!!!
+        /*
       .addComponent(DistanceGrabbable, {
         movementMode: MovementMode.MoveFromTarget,
         snapToHand: false,
         translate: false,
         })
-      */
+         */
+      /*
+       .addComponent(OneHandGrabbable, {
+        // Makes it grabbable with one hand
+        translate: true, // Can move it around
+        rotate: true, // Can rotate it
+      })
+       */
+      .addComponent(MyVideo)
+
+    if(false)
+    entity.addComponent(TabletInteractable, {
+      id: 'my-green-box',
+      isActive: true
+    });
 
     entity.object3D.position.set(x + 0, y + 1.5, z + -1.5)
     //entity.object3D.rotation.copy(mesh.rotation);
-    entity.object3D.rotateX( -Math.PI / 2 )
+    //entity.object3D.rotateX( -Math.PI / 2 )
     entity.object3D.scale.setScalar(0.5)
+    entity.object3D.scale.y = -entity.object3D.scale.y
+
 
     entity.myObject = new MyObjectToPlace(entity, video)
 
@@ -256,7 +242,7 @@ window.addVideosNotYetAdded = async function()
     addBorderToMesh(mesh, undefined, entity.myObject)
 
 
-    makeInteractionPriority(entity) //interact before the planes
+    makeInteractionPriority(entity, 0.1) //interact before the planes
 
 
     x += 0.55
@@ -582,9 +568,7 @@ export class MyPlane extends MyObject
     this.plane = entity.getValue(XRPlane, '_plane')
     this.mapIDtoObjects = new Map()
 
-
     mapEntityIDtoMyPlane.set(this.id, entity)
-
 
   }
 //-----------------------------------------------------------
@@ -596,6 +580,7 @@ let entitiesSelected = getPlanesSelected(undefined, true)
 
 if(!entity.selected)
 {
+  positionDashboardAndShow()
   entitiesCommand(entitiesSelected, "SELECT", false)
   this.select(true)
 
@@ -813,22 +798,23 @@ class PlaneLoggerSystem extends createSystem({
 
          const mesh = createDraggableMesh(WHminMax.myWidth, WHminMax.myHeight, undefined, true, 0);
 
-
-
           // 2. Turn it into an IWSDK entity that is interactable & draggable
           const draggableEntity = world
             .createTransformEntity(mesh)
             .addComponent(Interactable, {})
+            //.addComponent(Pressed) needs two clicks to activate
             .addComponent(MyVideo)
-            /*
+              /*
             .addComponent(DistanceGrabbable, {
               movementMode: MovementMode.MoveFromTarget,
-              snapToHand: true,
-              translate: true, // Allow moving
+              snapToHand: false,
+              translate: false, // Allow moving
               rotate: false,
               distanceLimits: { min: 0.1, max: 10.0 },
             });
-             */
+
+               */
+
                draggableEntity.meshWithBorder = mesh
                addBorderToMesh(mesh, undefined, planeObj)
 
@@ -838,7 +824,6 @@ class PlaneLoggerSystem extends createSystem({
           draggableEntity.object3D.position.copy(planeObj.position);
           draggableEntity.object3D.quaternion.copy(planeObj.quaternion);
           draggableEntity.object3D.rotateX(-Math.PI / 2)
-
 
           draggableEntity.object3D.updateMatrixWorld();
 
@@ -950,14 +935,17 @@ class XRSessionLifecycleSystem extends createSystem({}, {})
     const state = this.world.visibilityState.value
     if (state === this.lastState) return;
 
-    const xrSession = this.world.session
-
-     window.addVideosNotYetAdded()
+    window.addVideosNotYetAdded()
 
 
     // XR session just started
     if (this.lastState === 'non-immersive' && state === 'visible')
     {
+
+        window.xrSession = world.session
+        myAirVideos_afterSessionStarts()
+
+
       console.log('[IWSDK] XR session started');
       closePopover()
 
@@ -1035,7 +1023,7 @@ World.create(document.getElementById('scene-container'), {
               //, persistentAnchors: { required: true }
               , hitTest: { required: true }, planeDetection: { required: true }, meshDetection: false, layers: { required: false } }
   },
-  features: { locomotion: false, grabbing: true, physics: true, sceneUnderstanding: true, enableGrabbing: true
+  features: { locomotion: false, grabbing: false, physics: true, sceneUnderstanding: true, enableGrabbing: false
                         , interaction: {
                 far: 10.0, // Sets max ray length to 10 meters
                 near: 0.1
@@ -1048,35 +1036,13 @@ World.create(document.getElementById('scene-container'), {
 }).then((world) => {
 
   window.world = world
+
   const { camera } = world;
 
 
   camera.position.set(0, 1, 0.5);
 
 
-
-  if(false)
-  {
-  const { scene: plantMesh } = AssetManager.getGLTF('plantSansevieria');
-  
-  plantMesh.position.set(1.2, 0.2, -1.8);
-  plantMesh.scale.setScalar(2);
-  
-  /*
-  window.plantEntity = world
-    .createTransformEntity(plantMesh)
-    .addComponent(Interactable)
-      //allows to grab and move the plant
-    .addComponent(DistanceGrabbable, {
-      movementMode: MovementMode.MoveFromTarget
-    })
-     /* moves the plant
-
-    .addComponent(LocomotionEnvironment, {
-      type: EnvironmentType.STATIC, // walkable static geometry
-    })
-  */
-  }
 
 
 
@@ -1130,13 +1096,12 @@ World.create(document.getElementById('scene-container'), {
 
   world.createTransformEntity(logoBanner)
     .addComponent(Interactable)
-       .addComponent(MyVideo)
+    .addComponent(MyVideo)
     .addComponent(DistanceGrabbable, {
       movementMode: MovementMode.MoveFromTarget
     })
   logoBanner.position.set(0, 1, 1.8);
   logoBanner.rotateY(Math.PI);
-
 
 
 world
@@ -1145,15 +1110,23 @@ world
     .registerComponent(XRAnchor)
     .registerComponent(Interactable)
     .registerSystem(PlaneLoggerSystem)
-    .registerSystem(HitDebugSystem)
+    //.registerSystem(HitDebugSystem)
 
-    .registerSystem(PanelSystem)
+    //.registerSystem(PanelSystem)
     .registerSystem(RobotSystem)
     .registerSystem(MyVideoSystem)
     .registerSystem(XRSessionLifecycleSystem)
+    //.registerSystem(TabletTouchSystem)
+  //
+  //
 
-
-
+  .registerComponent(DashboardTag)
+  .registerComponent(DashboardButton)
+  .registerSystem(DashboardFollowSystem)
+  .registerSystem(DashboardButtonSystem)
+  // now it's safe to create entities with those components
+  createDashboard(world)
+  // and register the systems
 
 
 /*
@@ -1191,6 +1164,8 @@ if(false && isInLocalhost)
   // 3. Add the Locomotion component to the ENTITY, not the mesh
   floorEntity.addComponent(LocomotionEnvironment, { isStatic: true });
 }
+
+myAirVideos_afterWorldCreate()
 
 
 });
@@ -1484,7 +1459,7 @@ function alignCenters(movingEntity, referenceEntity, center_topLeft_bottomRight 
  * Forces an entity to always catch the raycast first,
  * effectively blocking interaction with anything behind OR in front of it.
  */
-function makeInteractionPriority(entity)
+window.makeInteractionPriority = function(entity, distance = 0)
 {
   const object3D = entity.object3D
 
@@ -1525,7 +1500,7 @@ function makeInteractionPriority(entity)
       // CRITICAL STEP:
       // We force the distance to 0.
       // When the SDK sorts [hitA, hitB, hitC], this will now be index 0.
-      hit.distance = 0;
+      hit.distance = distance;
 
       // Optional: If you want it to essentially be "on the camera lens"
       // hit.point = raycaster.ray.origin;
@@ -1612,6 +1587,239 @@ function getPointFromPercentage(planeMesh, xPct, yPct) {
 
   return targetPoint;
 }
+//--------------------------
+class TabletInteractable {
+  static schema = {
+    // Optional: Add data if you need it (e.g., specific event names)
+   id: { type: String, default: 'item-001' },
+  };
+}
+//--------------------------
+class TabletTouchSystem extends createSystem({
+  // Only find entities that have our tag
+  targets: { required: [TabletInteractable] }
+}) {
+  init() {
+    this.raycaster = new THREE.Raycaster();
+    this.pointer = new THREE.Vector2();
+
+    // State for drag detection
+    this.startX = 0;
+    this.startY = 0;
+    this.isPending = false;
+
+    // We attach to window to catch events globally, but filter by target
+    window.addEventListener('pointerdown', function () {
+      console.log("DOWN ÇlkçkçlkçlkÇLKÇLKÇLK")
+    });
+    window.addEventListener('pointerup', function () {
+      console.log("UP ÇlkçkçlkçlkÇLKÇLKÇLK")
+    });
+  }
+}
+//------------------------
+function positionDashboardAndShow(showNOTshow = true)
+{
+    positionDashBoardNow = showNOTshow
+    dashboardRoot.object3D.visible = showNOTshow
+
+    for(let entity of dashboardButtons)
+      if(showNOTshow)
+        entity.addComponent(Interactable);
+      else
+        entity.removeComponent(Interactable);
+}
+//------------------------
+class DashboardFollowSystem extends createSystem(
+  {
+    dashboard: { required: [DashboardTag] },
+  },
+  {}
+) {
+  init() {
+    this.offset = new Vector3(0, -0.1, -1.5); // slightly below eye & 1.5m away
+    this.tmp = new Vector3();
+  }
+
+  update(delta) {
+
+
+   if (positionDashBoardNow)
+      positionDashBoardNow = false
+   else return
+
+
+
+    const camera = this.world.camera; // main XR camera from IWSDK
+    if (!camera) return;
+
+    // For each dashboard, put it in front of the camera
+    this.queries.dashboard.entities.forEach(entity => {
+      const obj = entity.object3D;
+      if (!obj) return;
+
+      // position = camera.position + camera.quaternion * offset
+      this.tmp.copy(this.offset);
+      this.tmp.applyQuaternion(camera.quaternion);
+
+      obj.position.copy(camera.position).add(this.tmp);
+
+      // Make it face the same direction as the camera
+      obj.quaternion.copy(camera.quaternion);
+    });
+  }
+}
+//------------------------
+class DashboardButtonSystem extends createSystem(
+  {
+    buttonPressed: { required: [DashboardButton, Pressed] },
+  },
+  {}
+) {
+  update(delta) {
+
+    // Every frame, see which buttons became pressed
+    this.queries.buttonPressed.entities.forEach(entity => {
+      const cfg = entity.buttonConfig //INSTEAD OF getComponent(DashboardButton)
+      if (!cfg) return
+
+      switch (cfg.id) {
+        case 'home':
+          this.handleHome();
+          break;
+        case 'settings':
+          this.handleSettings();
+          break;
+        case 'close':
+          positionDashboardAndShow(false);
+          break;
+      }
+
+      // If you want "on click" once, make sure Pressed is cleared by IWSDK after release
+    });
+  }
+
+  handleHome() {
+    console.log('Dashboard: HOME pressed');
+    // your logic here (e.g. change panel, teleport, etc.)
+  }
+
+  handleSettings() {
+    console.log('Dashboard: SETTINGS pressed');
+    // open config, toggle something, etc.
+  }
+
+  handleClose(entity) {
+    console.log('Dashboard: CLOSE pressed');
+    // maybe hide the dashboard:
+    const root = entity.parent; // assuming parent is dashboard root
+    if (root) root.object3D.visible = false;
+  }
+}
+window.textureWithImage = function(img, text, headerHeight){
+
+
+  const width = img.naturalWidth
+  const height = img.naturalHeight
+
+  const canvas = document.createElement('canvas')
+  canvas.width = width
+  canvas.height = height + headerHeight
+
+  const ctx = canvas.getContext('2d')
+
+  ctx.drawImage(img, 0, headerHeight, width, height)
+
+  // background
+  ctx.fillStyle = '#222';
+  ctx.fillRect(0, 0, canvas.width, headerHeight);
+
+  // some text
+  ctx.fillStyle = '#fff';
+  ctx.font = '20px sans-serif';
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(text, 10, headerHeight / 2);
+
+  // 2. Turn the canvas into a Three.js texture
+  const texture = new THREE.CanvasTexture(canvas)
+  texture.colorSpace = SRGBColorSpace
+  texture.needsUpdate = true
+
+  const material = new MeshStandardMaterial({
+    map: texture,
+    transparent: true,
+    side: 2,
+  });
+
+    // 3. Make a plane with the same aspect ratio as the image
+    const aspect = canvas.width / canvas.height;
+    const planeHeight = 1.0;              // 1 meter tall
+    const planeWidth = planeHeight * aspect;   // keep aspect ratio
+
+    //const geometry = new PlaneGeometry(planeWidth, planeHeight);
+    const geometry = new PlaneGeometry(1, -1)
+    //geometry.rotateX(-Math.PI / 2) // so as to avoid difference between planes and objects
+
+    geometry.scale(1, 1, 1)              // mirror on X in local space
+    geometry.computeVertexNormals()
+
+    return new Mesh(geometry, material)
+
+}
+
+//----------------------------------------------
+window.createTextTexture = function (text, config = {}) {
+  // Default configuration
+  const width = config.width || 512;
+  const height = config.height || 256;
+  const bgColor = config.bgColor || '#4a90e2'; // Blue
+  const textColor = config.textColor || '#ffffff'; // White
+  const fontSize = config.fontSize || 60;
+
+  // 1. Create a virtual canvas
+  const canvas = document.createElement('canvas');
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext('2d');
+
+  // 2. Draw the Background Rectangle
+  ctx.fillStyle = bgColor;
+  ctx.fillRect(0, 0, width, height);
+
+  // 3. Draw the Text
+  ctx.font = `bold ${fontSize}px Arial, sans-serif`;
+  ctx.fillStyle = textColor;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+
+  // Center the text in the canvas
+  ctx.fillText(text, width / 2, height / 2);
+
+  // 4. Create Three.js Texture
+  const texture = new THREE.CanvasTexture(canvas);
+
+  // Optional: Improve text sharpness
+  texture.minFilter = THREE.LinearFilter;
+  texture.magFilter = THREE.LinearFilter;
+
+  const material = new THREE.MeshBasicMaterial({
+  map: texture,
+  transparent: true, // Only needed if your canvas has transparent areas
+});
+
+   //const geometry = new PlaneGeometry(planeWidth, planeHeight);
+    const geometry = new PlaneGeometry(1, -1 * height/width)
+    geometry.rotateX(-Math.PI / 2) // so as to avoid difference between planes and objects
+
+    geometry.scale(0.3, 0.3, 0.3)              // mirror on X in local space
+    geometry.computeVertexNormals()
+
+   return new Mesh(geometry, material)
+}
+//--------------------------------
+
+
 
 window.MyPlane = MyPlane
 

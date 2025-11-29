@@ -1260,7 +1260,7 @@ function deviceUID()
      {
 	  deviceUniqueID = crypto.randomUUID()
       window.localStorage.setItem("deviceUID", deviceUniqueID)
-     } 
+     }
   }
   return deviceUniqueID
 }
@@ -1327,7 +1327,7 @@ function uploadLocalVideosToCloud()
         groupName: groupName,
         videos: JSON.stringify(Array.from(VideosCut.videosSelected.entries())),
         planesPersistentInfo: JSON.stringify(Array.from(mapWallTableIDtoPersistentInfo.entries()))
-        }   
+        }
 
     uploadedAirVideosBaseApp = {
         groupName: groupName,
@@ -1338,7 +1338,7 @@ function uploadLocalVideosToCloud()
     const baseAppID = ""
 
     submit_AIRVIDEOSIWSDK_COMMAND("UPLOAD", baseAppID, JSON.stringify(airVideosBaseApp))
-    
+
 }
 //------------------------------------------
 function refresh_manageCloudObjects()
@@ -1558,4 +1558,90 @@ function ById(id)
 {
     return document.getElementById(id) || $("."+id)[0]
 }
+//--------------------------------------------
+function canvas_onPointerDown(event)
+{
+console.log("canvas_onPointerDown")
+const rect = world.renderer.domElement.getBoundingClientRect();
 
+    // 2. Convert 2D Screen pixel to "Normalized Device Coordinates" (NDC)
+    // Range: -1 to +1
+    const x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+    const y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+
+    // 3. Mark flag to process in the loop
+    this.clicked = true;
+}
+//--------------------------------------------
+function onSelect(event) {
+  console.log('Tablet XR select', event);
+}
+//--------------------------------------------
+function onSelectStart(event) {
+  // optional: "pointer down" semantics
+  console.log('Tablet XR selectstart', event);
+}
+//--------------------------------------------
+function onSelectEnd(event) {
+  // optional: "pointer up" semantics
+  console.log('Tablet XR selectend', event);
+}
+//--------------------------------------------
+function setupTabletSelectHandlers(session) {
+  // Avoid duplicate listeners if you re-enter XR
+  session.removeEventListener('select', onSelect);
+  session.addEventListener('select', onSelect);
+
+  session.removeEventListener('selectstart', onSelectStart);
+  session.addEventListener('selectstart', onSelectStart);
+
+  session.removeEventListener('selectend', onSelectEnd);
+  session.addEventListener('selectEnd', onSelectEnd);
+}
+//--------------------------------------------
+function myAirVideos_afterSessionStarts()
+{
+     setupTabletSelectHandlers(xrSession);
+}
+//--------------------------------------------
+function myAirVideos_afterWorldCreate()
+{
+
+const canvas = world.renderer.domElement;
+
+    // Use 'pointerdown' - it works for both Touch (Tablet) and Mouse (Desktop)
+    canvas.addEventListener('pointerdown', canvas_onPointerDown)
+    canvas.style.touchAction = "none"
+    canvas.style.userSelect = "none"
+
+     window.addEventListener('pointerdown', function () {
+      console.log("DOWN ÇlkçkçlkçlkÇLKÇLKÇLK")
+    });
+    window.addEventListener('pointerup', function () {
+      console.log("UP ÇlkçkçlkçlkÇLKÇLKÇLK")
+    });
+
+
+
+
+/*
+
+const xrInput = world.input
+const mpRight = xrInput.multiPointers.right;
+const mpLeft  = xrInput.multiPointers.left;
+
+
+mpRight.onPointerDown((event) => {
+  console.log('right hand/controller pointer down', event);
+});
+mpRight.onPointerUp((event) => {
+  console.log('right hand/controller pointer up', event);
+});
+mpLeft.onPointerDown((event) => {
+  console.log('left hand/controller pointer down', event);
+});
+mpLeft.onPointerUp((event) => {
+  console.log('left hand/controller pointer up', event);
+});
+*/
+}
