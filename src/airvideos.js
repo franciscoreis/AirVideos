@@ -10,6 +10,10 @@ const VideosCut = {
 
 const mapBaseAppID_to_AirVideo = new Map()
 
+var CLICKED_BY_ENTITY_NOT_TOUCH = true //IMPORTANT: changes to false to avoid two clicks when touch devices are detected
+
+
+
 var lang = 0//navigator.language
 var languageBeforeLogin = lang
 var regionIndex = 0 //USA
@@ -1574,17 +1578,60 @@ const rect = world.renderer.domElement.getBoundingClientRect();
 }
 //--------------------------------------------
 function onSelect(event) {
-  console.log('Tablet XR select', event);
+  consoleLogIfIsInLocalhost('Tablet XR select');
+  CLICKED_BY_ENTITY_NOT_TOUCH = false
+
+const frame = event.frame;
+  const session = frame.session;
+
+  // Get reference space from your renderer / XR setup
+  const refSpace = world.renderer.xr.getReferenceSpace(); // or however you store it
+  if (!refSpace) return;
+
+  const inputSource = event.inputSource;
+  if (!inputSource || !inputSource.targetRaySpace) return;
+
+  // 🔹 This is allowed in this event
+  const pose = frame.getPose(inputSource.targetRaySpace, refSpace);
+  if (!pose) return;
+
+  // Origin + direction of the ray
+  const origin = new THREE.Vector3(
+    pose.transform.position.x,
+    pose.transform.position.y,
+    pose.transform.position.z
+  );
+
+  const orientation = new THREE.Quaternion(
+    pose.transform.orientation.x,
+    pose.transform.orientation.y,
+    pose.transform.orientation.z,
+    pose.transform.orientation.w
+  );
+
+  const direction = new THREE.Vector3(0, 0, -1).applyQuaternion(orientation).normalize();
+
+  // Now raycast into your IWSDK / three.js scene
+  const raycaster = new THREE.Raycaster();
+  raycaster.set(origin, direction);
+  const hits = raycaster.intersectObjects(world.scene.children, true);
+  for(let hit of hits)
+  {
+      const entity = hit.object.entity
+      if(entity && entity.myObject && entity.myObject.clicked)
+         return entity.myObject.clicked()
+  }
 }
 //--------------------------------------------
 function onSelectStart(event) {
   // optional: "pointer down" semantics
-  console.log('Tablet XR selectstart', event);
+  consoleLogIfIsInLocalhost('Tablet XR selectstart', event);
+  CLICKED_BY_ENTITY_NOT_TOUCH = false
 }
 //--------------------------------------------
 function onSelectEnd(event) {
   // optional: "pointer up" semantics
-  console.log('Tablet XR selectend', event);
+  consoleLogIfIsInLocalhost('Tablet XR selectend', event);
 }
 //--------------------------------------------
 function setupTabletSelectHandlers(session) {

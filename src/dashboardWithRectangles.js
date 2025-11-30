@@ -70,6 +70,9 @@ export function createDashboard(world) {
 
     dashboardButtons.add(buttonEntity);
 
+    const myButton = new MyButton(buttonEntity, mesh)
+    myButton.id = cfg.id
+
 
     buttonEntity.object3D.rotateX( -Math.PI / 2 )
     //buttonEntity.object3D.rotateY( -Math.PI / 2 )

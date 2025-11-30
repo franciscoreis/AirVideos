@@ -27,7 +27,7 @@ export class MyVideoSystem extends createSystem({
 
     this.queries.myVideoClicked.subscribe('qualify', (entity) => {
       console.log("CLICKED MY VIDEO")
-      if (entity.myObject)
+      if (entity.myObject && CLICKED_BY_ENTITY_NOT_TOUCH)
         entity.myObject.clicked()
     });
     this.queries.myVideoClicked.subscribe('disqualify', (entity) => {

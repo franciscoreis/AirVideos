@@ -77,6 +77,7 @@ import { LoadingManager
     ,Vector2
     ,ArrowHelper
     ,LinearFilter
+    ,Quaternion
 } from '@iwsdk/core';
 
 
@@ -134,6 +135,7 @@ const THREE = {
   ,Vector2: Vector2
   ,ArrowHelper: ArrowHelper
   ,LinearFilter: LinearFilter
+  ,Quaternion: Quaternion
 }
 window.THREE = THREE
 
@@ -233,7 +235,7 @@ window.addVideosNotYetAdded = async function()
     entity.object3D.scale.y = -entity.object3D.scale.y
 
 
-    entity.myObject = new MyObjectToPlace(entity, video)
+    entity.myObject = new MyObjectToPlace(entity, mesh, video)
 
     mapCodeToEntity.set(code, entity)
     video.objectIn3D = undefined
@@ -257,7 +259,7 @@ window.addVideosNotYetAdded = async function()
   }
 
 
-  if(false) //FLOOR
+  if(false) //FLOOR for Debugging
   {
   const geometry = new BoxGeometry(0.2, 0.2, 0.2);
   const material = new MeshStandardMaterial({ color: 0xff0000 });
@@ -374,6 +376,7 @@ class MyObject
     this.entity = entity
     entity.myObject = this
     this.mesh = mesh
+    mesh.entity = entity //important in Touch action
     this.object3D = entity.object3D
 
     entity.selected = false
@@ -444,32 +447,6 @@ addBorderToMesh(entity.meshWithBorder, entity.selected ? 0xff0000 : 0xffff00, en
     console.error("Failed to persist anchor:", err);
   }
 }
-//-----------------------------------------------------------
-addBorderToMesh(color = 0xffff00)
-{
-  const targetMesh = this.mesh
-  // Create geometry based ONLY on the edges (ignore the faces)
-  const edgesGeometry = new THREE.EdgesGeometry(targetMesh.geometry);
-
-  // Create the material for the line (Yellow, for example)
-  const lineMaterial = new LineBasicMaterial({ color: color });
-
-  // Create the line object
-  const border = new THREE.LineSegments(edgesGeometry, lineMaterial);
-
-  // OPTIONAL: Scale it up slightly (1.01) to prevent "z-fighting" (flickering)
-  // against the object itself
-  border.scale.setScalar(1.01);
-
-  // 3. Add the border as a CHILD of the mesh
-  // This ensures the border moves, rotates, and scales with the mesh
-  if(this.border)
-    targetMesh.remove(this.border)
-  this.border = border;
-  targetMesh.add(border);
-
-  return border; // Return it so you can remove it later
-}
   //----------------------------------------
 addPointableEvents(events = {}) {
   // Ensure the entity has the base component
@@ -516,9 +493,9 @@ class MyObjectToPlace extends MyObject
 {
   static firstEntityToBeSelected
 
-  constructor(entity, video)
+  constructor(entity, mesh, video)
   {
-    super(entity)
+    super(entity, mesh)
     this.video = video
     entity.placed = false
     window.mapEntityIDtoMyObject.set(this.id, entity)
@@ -557,9 +534,9 @@ addBorderToMesh(entity.meshWithBorder, entity.selected ? 0xff0000 : 0xffff00, en
 export class MyPlane extends MyObject
 {
 
-  constructor(entity)
+  constructor(entity, mesh)
   {
-    super(entity)
+    super(entity, mesh)
 
     if(mapEntityIDtoMyPlane.get(this.id))
       return
@@ -768,7 +745,37 @@ rearrangeObjects()
 
 
 }// class MyPlane()
+//-------------------------------------------------
+export class MyButton extends MyObject {
 
+    constructor(entity, mesh) {
+        super(entity, mesh)
+        this.entity = entity
+    }
+//-----------------------------------
+    clicked()
+    {
+            consoleLogIfIsInLocalhost("MyButton CLICKED")
+
+
+       switch (this.id)
+       {
+        case 'home':
+          this.handleHome();
+          break;
+        case 'settings':
+          this.handleSettings();
+          break;
+        case 'close':
+          positionDashboardAndShow(false);
+          break;
+      }
+
+
+    }
+
+
+} //class MyButton
 //----------------------------------------------------------
 class PlaneLoggerSystem extends createSystem({
   planes: { required: [XRPlane] },
@@ -791,7 +798,7 @@ class PlaneLoggerSystem extends createSystem({
     console.log('Plane detected:' + this.plane.semanticLabel + " " + WHminMax.myArea.toFixed(2) + " = " + WHminMax.myWidth.toFixed(2) + " x " + WHminMax.myHeight.toFixed(2), this.id) //, entity.object3D?.position);
 
 
-    if(this.plane.semanticLabel === "wall" || this.plane.semanticLabel === "table")
+    if(true || this.plane.semanticLabel === "wall" || this.plane.semanticLabel === "table")
     {
          const planeEntity = entity
          const planeObj = entity.object3D
@@ -815,8 +822,8 @@ class PlaneLoggerSystem extends createSystem({
 
                */
 
-               draggableEntity.meshWithBorder = mesh
-               addBorderToMesh(mesh, undefined, planeObj)
+          draggableEntity.meshWithBorder = mesh
+          addBorderToMesh(mesh, undefined, planeObj)
 
           draggableEntity.object3D.visible = showingWallsAndTable
 
@@ -830,7 +837,7 @@ class PlaneLoggerSystem extends createSystem({
           // 4. Keep a reference so we can clean it later
           planeEntity._draggableEntity = draggableEntity;
 
-          const myPlane = new MyPlane(draggableEntity)
+          const myPlane = new MyPlane(draggableEntity, mesh)
           myPlane.label = this.plane.semanticLabel
           draggableEntity.myObject.WHminMax = WHminMax
 
@@ -855,12 +862,16 @@ class PlaneLoggerSystem extends createSystem({
 
     // Called when a plane is removed/lost
     this.queries.planes.subscribe('disqualify', (entity) => {
-      console.log('Plane lost:', entity.object3D?.position);
 
       const id = entity.id || entity.object3D?.uuid
-      console.log('Plane removed:', id);
+      consoleLogIfIsInLocalhost('Plane removed: ' + id);
       entity.detectedNOTremoved = false
+      const myPlane = mapEntityIDtoMyPlane.get(id)
+      if(!myPlane)
+          return
       mapEntityIDtoMyPlane.delete(id)
+      world.scene.remove(myPlane.entity)
+      mapWallTableIDtoPersistentInfo.delete(myPlane.persistentInfo.id)
 
 
       // Clean up any content attached to this plane if needed
@@ -1215,7 +1226,7 @@ window.addBorderToMesh = function (targetMesh, color = 0xffff00, parent) {
   const edgesGeom = new THREE.EdgesGeometry(targetMesh.geometry);
   const edgesMat = new THREE.LineBasicMaterial({
         color: color
-        ,linewidth: 1  // ignored on most platforms, but ok
+        ,linewidth: 5  // ignored on most platforms but... NOT IGNORED on Android Tablet Chrome!!!
       })
 
   if(!targetMesh)
@@ -1681,19 +1692,11 @@ class DashboardButtonSystem extends createSystem(
     // Every frame, see which buttons became pressed
     this.queries.buttonPressed.entities.forEach(entity => {
       const cfg = entity.buttonConfig //INSTEAD OF getComponent(DashboardButton)
-      if (!cfg) return
+      if (!cfg || !CLICKED_BY_ENTITY_NOT_TOUCH)
+          return
 
-      switch (cfg.id) {
-        case 'home':
-          this.handleHome();
-          break;
-        case 'settings':
-          this.handleSettings();
-          break;
-        case 'close':
-          positionDashboardAndShow(false);
-          break;
-      }
+      entity.myButton.clicked()
+
 
       // If you want "on click" once, make sure Pressed is cleared by IWSDK after release
     });
@@ -1716,8 +1719,8 @@ class DashboardButtonSystem extends createSystem(
     if (root) root.object3D.visible = false;
   }
 }
+//----------------------------------------------------------------
 window.textureWithImage = function(img, text, headerHeight){
-
 
   const width = img.naturalWidth
   const height = img.naturalHeight
@@ -1822,5 +1825,5 @@ window.createTextTexture = function (text, config = {}) {
 
 
 window.MyPlane = MyPlane
-
+window.MyButton = MyButton
 
