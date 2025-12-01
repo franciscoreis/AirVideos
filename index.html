@@ -11,16 +11,33 @@
 
 
     <script type="text/javascript" src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+    <!-- <script src="https://www.gstatic.com/cv/js/sender/v1/cast_sender.js?loadCastFramework=1"></script> -->
+    <script src="https://www.youtube.com/iframe_api"></script>
+
     <script type="text/javascript" src="/src/airvideos.js"></script>
 
     <style>
       .wm{padding:0px;margin:0px;border-spacing:0;vertical-align:middle}
       .text_ellipsis{text-overflow:ellipsis;overflow:hidden;white-space:nowrap}
       th,td{text-align: center}
+
+      google-cast-launcher {
+        width: 40px;
+        height: 40px;
+
+        display: inline-block;
+
+        vertical-align: middle;
+        cursor: pointer;
+
+        --connected-color: #4285f4; /* Blue when connected */
+        --disconnected-color: #777; /* Grey when idle */
+      }
+
     </style>
 
 
-    <script type="module" crossorigin src="./assets/index-CMCd1WjB.js"></script>
+    <script type="module" crossorigin src="./assets/index-T9kZcdts.js"></script>
   </head>
   <body onLoad='initialize_airvideos()' style="margin: 0;font-family:Calibri,Arial,sans-serif">
   <div id="for_sibling_of_parent_element"></div><div id="for_parent_element" style="position: relative">
@@ -36,6 +53,8 @@
           <button class="showWhenLogin" onclick="event.stopPropagation();event.preventDefault();if(confirm('Logout?'))window.location.reload()" title="logout" style="display:none;cursor: pointer; background-color: rgb(255, 255, 255);"><img src="https://storage.googleapis.com/cdniverse/LoginLogout/nine_squares_squared_LOGOUT.svg" style="height:22px"></button>
           &nbsp;<img onClick="manageCloudObjects()" class="showWhenLogin" src="https://storage.googleapis.com/cdniverse/images/352277_cloud_queue_icon.svg" style="display:none;height:2em;vertical-align:bottom">
         </nobr>
+        <!--  <google-cast-launcher id="cast-button"></google-cast-launcher> -->
+
 
         <br><a target="_blank" href="https://youtube.com"><img src="https://storage.googleapis.com/cdniverse/images/1298778_youtube_play_video_icon.svg" style="height:30px;cursor:pointer;vertical-align: middle" title="YouTube web site" alt="YouTube web site" ></a>
             &nbsp;<input class="demo_inputToReceiveYoutubeURLorCode" id="inputToReceiveYoutubeURLorCode" onchange="event.stopPropagation();changedInputToReceiveYoutubeURLorCode(undefined, event)" type="text" style="width:250px" placeholder=" youtube url, youtube code">

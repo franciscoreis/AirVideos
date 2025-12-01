@@ -1,7 +1,6 @@
 
 
 import {
-  AudioUtils,
   createComponent,
   createSystem,
   Pressed,
@@ -18,8 +17,8 @@ export class RobotSystem extends createSystem({
     this.lookAtTarget = new Vector3();
     this.vec3 = new Vector3();
     this.queries.robotClicked.subscribe('qualify', (entity) => {
-      showOrHideWallsTables()
-      AudioUtils.play(entity);
+      if(CLICKED_BY_ENTITY_NOT_TOUCH)
+        entity.myObject.clicked()
     });
   }
 

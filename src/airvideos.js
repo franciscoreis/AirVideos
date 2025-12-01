@@ -524,7 +524,7 @@ for(let [code, video] of VideosCut.videosSelected)
           + "<td class='wm text_ellipsis' style='max-width:150px'>" + (video.title || code) + "</td>"
           + "<td class='wm' onClick='removeYouTubeCode(\""+ code +"\")' style='cursor:pointer;color:red;width:1px'><b>&nbsp;X&nbsp;</b></td></tr></table>"
           + "</th></tr>"
-        + "<tr><td><a target='_blank' href='"+youtubeURLfromCode(code)+"'><img class='img_airvideos_code_"+ code +"' src='"+getYoutubeImageURL(code)+"' crossorigin='anonymous' style='width:200px;aspect-ratio:200/150'></a></td></tr>"
+        + "<tr><td><a onCLick='playThisCode(\"" + code + "\")'><img class='img_airvideos_code_"+ code +"' src='"+getYoutubeImageURL(code)+"' crossorigin='anonymous' style='width:200px;aspect-ratio:200/150'></a></td></tr>"
         + "</table>"
     groupNameToS.set(group, ID_toS)
 }
@@ -612,13 +612,13 @@ if(!id)
 return "https://img.youtube.com/vi/" + id + "/"+ (mini ? "default" : "0") + ".jpg"
 }
 //------------------------------------------
-function showPopoverWithContent(s, uniqueID, doNotClose)
+function showPopoverWithContent(s, uniqueID, doNotClose, insteadOfContent)
 {
-    if(!doNotClose && uniqueID && uniqueID === lastPopoverUniqueID && s === lastPopoverContent)
+    if(!doNotClose && uniqueID && uniqueID === lastPopoverUniqueID && (insteadOfContent || s) === lastPopoverContent)
         return closePopover(uniqueID)
 
     lastPopoverUniqueID = uniqueID
-    lastPopoverContent = s
+    lastPopoverContent = insteadOfContent || s
     const popover = document.getElementById("my-popover")
     popover.innerHTML = s
     popover.showPopover()
@@ -1617,9 +1617,17 @@ const frame = event.frame;
   const hits = raycaster.intersectObjects(world.scene.children, true);
   for(let hit of hits)
   {
-      const entity = hit.object.entity
-      if(entity && entity.myObject && entity.myObject.clicked)
-         return entity.myObject.clicked()
+      let object = hit.object
+      while(object)
+      {
+          const entity = hit.object.entity
+          while(entity) {
+              if(entity && entity.myObject && entity.myObject.clicked)
+                 return entity.myObject.clicked()
+              entity = entity.parent
+             }
+          object = object.parent
+    }
   }
 }
 //--------------------------------------------
@@ -1662,33 +1670,132 @@ const canvas = world.renderer.domElement;
     canvas.style.userSelect = "none"
 
      window.addEventListener('pointerdown', function () {
-      console.log("DOWN ÇlkçkçlkçlkÇLKÇLKÇLK")
+      consoleLogIfIsInLocalhost("pointer DOWN")
     });
     window.addEventListener('pointerup', function () {
-      console.log("UP ÇlkçkçlkçlkÇLKÇLKÇLK")
+      consoleLogIfIsInLocalhost("pointer UP")
     });
 
 
+    if (window.cast && window.cast.framework)
+        return initializeCastApi();
 
-
-/*
-
-const xrInput = world.input
-const mpRight = xrInput.multiPointers.right;
-const mpLeft  = xrInput.multiPointers.left;
-
-
-mpRight.onPointerDown((event) => {
-  console.log('right hand/controller pointer down', event);
-});
-mpRight.onPointerUp((event) => {
-  console.log('right hand/controller pointer up', event);
-});
-mpLeft.onPointerDown((event) => {
-  console.log('left hand/controller pointer down', event);
-});
-mpLeft.onPointerUp((event) => {
-  console.log('left hand/controller pointer up', event);
-});
-*/
 }
+//----------------------------------------------------------------
+function playThisCode(code, popover = true) //strange but needed!!!
+{
+   if(popover)
+     return playInPopover(code)
+
+
+    let s = "<center><table><tr><td>PLAY<br>VIDEO</td><td>&nbsp;</td><td><img src='"+getYoutubeImageURL(code)+"' style='height:40px'></tr></table>"
+        + "<br><a target='_blank' href='" + youtubeURLfromCode(code)+"'>new tab</a>"
+        + " &nbsp; <button onClick='playInPopover(\"" + code + "\")'>popover</button>"
+        + " &nbsp; <button onCLick='loadMedia()'>TV cast</button>"
+        + " <br><br><label><input type='checkbox'> remember ny choice</label>"
+        + "</center>"
+    showPopoverWithContent(s, "playThisCode")
+}
+//-------------------------------------------------------------
+function playInPopover(code) {
+    let s = "<div id='youtube_player'></div>"
+
+    showPopoverWithContent(s, "playInPopover", undefined, code)
+
+
+    const player = new YT.Player('youtube_player', {
+          height: '390',
+          width: '640',
+          videoId: code, // <-- put your YouTube video ID here
+          playerVars: {
+            // controls must be on so the Cast button can appear
+            controls: 1,
+            playsinline: 1
+          }
+        });
+
+}
+//-------------------------------------------------------------
+// 1. Initialize the Cast SDK
+window['__onGCastApiAvailable'] = function(isAvailable) {
+    if (isAvailable) {
+        initializeCastApi();
+    }
+};
+//-------------------------------------------------------------
+function initializeCastApi() {
+    // The default receiver app ID (can play standard video/audio formats)
+    const applicationId = chrome.cast.media.DEFAULT_MEDIA_RECEIVER_APP_ID;
+
+    // Initialize the Cast Context
+    cast.framework.CastContext.getInstance().setOptions({
+        receiverApplicationId: applicationId,
+        autoJoinPolicy: chrome.cast.AutoJoinPolicy.ORIGIN_SCOPED
+    });
+
+    console.log('Cast initialized');
+
+    // Optional: Listen for session changes (Connected/Disconnected)
+    var context = cast.framework.CastContext.getInstance();
+    context.addEventListener(
+        cast.framework.CastContextEventType.SESSION_STATE_CHANGED,
+        function(event) {
+            switch (event.sessionState) {
+                case cast.framework.SessionState.SESSION_STARTED:
+                    console.log('Cast Session Started!');
+                    break;
+                case cast.framework.SessionState.SESSION_ENDED:
+                    console.log('Cast Session Ended');
+                    break;
+            }
+        }
+    );
+}
+//---------------------------------------------------------------
+// 2. Load Media (The "Cast Video" button)
+function loadMedia() {
+    // Get the current active session
+
+    if(!window.cast)
+        return showMessageErrorOnSOSforDuration("Cast system not found")
+
+    var castSession = cast.framework.CastContext.getInstance().getCurrentSession();
+
+    if (!castSession) {
+        alert("Please click the Cast button and connect to a device first!");
+        return;
+    }
+
+    // Define the media to be played
+    var mediaInfo = new chrome.cast.media.MediaInfo(
+        'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4',
+        'video/mp4'
+    );
+
+    // Add Metadata (Title, Subtitle, Images)
+    mediaInfo.metadata = new chrome.cast.media.GenericMediaMetadata();
+    mediaInfo.metadata.metadataType = chrome.cast.media.MetadataType.GENERIC;
+    mediaInfo.metadata.title = 'Big Buck Bunny';
+    mediaInfo.metadata.subtitle = 'Blender Foundation';
+    mediaInfo.metadata.images = [
+        {'url': 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/images/BigBuckBunny.jpg'}
+    ];
+
+    // Create the load request
+    var request = new chrome.cast.media.LoadRequest(mediaInfo);
+
+    // Send the load command to the receiver
+    castSession.loadMedia(request).then(
+        function() { console.log('Load succeed'); },
+        function(errorCode) { console.log('Error code: ' + errorCode); }
+    );
+}
+
+// 3. Stop Casting
+function stopApp() {
+    var castSession = cast.framework.CastContext.getInstance().getCurrentSession();
+    if (castSession) {
+        castSession.endSession(true); // true = stop casting on the TV as well
+    }
+}
+

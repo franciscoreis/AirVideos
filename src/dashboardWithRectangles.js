@@ -41,7 +41,7 @@ export function createDashboard(world) {
 
   const buttonsConfig = [
     { id: 'home',     label: 'Home',     x: -0.4 },
-    { id: 'settings', label: 'Settings', x:  0.0 },
+    { id: 'remove', label: 'Remove', x:  0.0 },
     { id: 'close',    label: 'Close',    x:  0.4 },
   ];
 

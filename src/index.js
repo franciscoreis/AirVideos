@@ -11,7 +11,8 @@ import {
   createSystem,
   XRPlane,
   XRMesh,
-    SceneUnderstandingSystem
+  SceneUnderstandingSystem,
+  AudioUtils,
 } from '@iwsdk/core';
 
 import {
@@ -151,6 +152,8 @@ var loaded_mapWallTableIDtoPersistentInfo = {}
 var positionDashBoardNow = false
 window.dashboardButtons = new Set()
 
+var planeSelected
+
 const mapCodeToEntity = new Map()
 
 //-------------------------------
@@ -235,7 +238,7 @@ window.addVideosNotYetAdded = async function()
     entity.object3D.scale.y = -entity.object3D.scale.y
 
 
-    entity.myObject = new MyObjectToPlace(entity, mesh, video)
+    entity.myObject = new MyObjectVideo(entity, mesh, video)
 
     mapCodeToEntity.set(code, entity)
     video.objectIn3D = undefined
@@ -376,7 +379,7 @@ class MyObject
     this.entity = entity
     entity.myObject = this
     this.mesh = mesh
-    mesh.entity = entity //important in Touch action
+    makeThisAndChildrenPointToEntity(mesh, entity) //important in Touch action
     this.object3D = entity.object3D
 
     entity.selected = false
@@ -489,7 +492,7 @@ addPointableEvents(events = {}) {
 
 } //class MyObject
 //-------------------------------------------------
-class MyObjectToPlace extends MyObject
+class MyObjectVideo extends MyObject
 {
   static firstEntityToBeSelected
 
@@ -505,19 +508,23 @@ clicked()
 {
 const entity = this.entity
 
+if(entity.placed)
+    return playThisCode(entity.myObject.video.code)
+
+
 let entitiesSelected= getObjectsSelected(this.video.groupName, this.video.subGroupName, undefined, true)
 let entitiesNotSelected = getObjectsSelected(this.video.groupName, this.video.subGroupName, undefined, false)
 
 if(entitiesSelected.size === 0)
-   MyObjectToPlace.firstEntityToBeSelected = undefined
+   MyObjectVideo.firstEntityToBeSelected = undefined
 
 if(!entity.selected)
 {
   this.select(true)
-  if(!MyObjectToPlace.firstEntityToBeSelected)
-    MyObjectToPlace.firstEntityToBeSelected = entity
+  if(!MyObjectVideo.firstEntityToBeSelected)
+    MyObjectVideo.firstEntityToBeSelected = entity
 }
-else if(MyObjectToPlace.firstEntityToBeSelected && MyObjectToPlace.firstEntityToBeSelected !== entity)
+else if(MyObjectVideo.firstEntityToBeSelected && MyObjectVideo.firstEntityToBeSelected !== entity)
   this.select(false)
 else if(entitiesNotSelected.size < 1)
       entitiesCommand(entitiesSelected, "SELECT", false)
@@ -529,7 +536,7 @@ else
 addBorderToMesh(entity.meshWithBorder, entity.selected ? 0xff0000 : 0xffff00, entity.myObject)
 }
 
-}//class MyObjectToPlace
+}//class MyObjectVideo
 //-------------------------------------------------
 export class MyPlane extends MyObject
 {
@@ -541,7 +548,6 @@ export class MyPlane extends MyObject
     if(mapEntityIDtoMyPlane.get(this.id))
       return
 
-    this.entity = entity
     this.plane = entity.getValue(XRPlane, '_plane')
     this.mapIDtoObjects = new Map()
 
@@ -555,9 +561,11 @@ const entity = this.entity
 
 let entitiesSelected = getPlanesSelected(undefined, true)
 
+
 if(!entity.selected)
 {
   positionDashboardAndShow()
+  planeSelected = this
   entitiesCommand(entitiesSelected, "SELECT", false)
   this.select(true)
 
@@ -569,13 +577,28 @@ if(!entity.selected)
     joinEntitiesToPlane(this, objects)
     entitiesCommand(objects, "SELECT", true) //if not select become selected
   }
-}
+} else if(!positionDashBoardNow)
+    positionDashboardAndShow(true)
 else if(entitiesSelected.size) //deselect if any is selected
    entitiesCommand(this.entitiesInPlane(true), "SELECT", false)
 else //rearrange
 {
 
 }
+}
+//-------------------------------------------------------------
+removeFromScene()
+{
+      const entity = this.entity
+      const id = this.id
+      consoleLogIfIsInLocalhost('Plane removed: ' + id);
+      entity.detectedNOTremoved = false
+      mapEntityIDtoMyPlane.delete(id)
+
+      removeEntityFromScene(entity)
+
+      mapWallTableIDtoPersistentInfo.delete(id)
+
 }
 //-------------------------------------------------------------
 entitiesInPlane(selected)
@@ -746,11 +769,23 @@ rearrangeObjects()
 
 }// class MyPlane()
 //-------------------------------------------------
+export class MyRobot extends MyObject {
+     constructor(entity, mesh) {
+        super(entity, mesh)
+    }
+//-----------------------------------
+    clicked()
+    {
+      showOrHideWallsTables()
+      AudioUtils.play(this.entity);
+    }
+
+} //class MyRobot
+//-------------------------------------------------
 export class MyButton extends MyObject {
 
     constructor(entity, mesh) {
         super(entity, mesh)
-        this.entity = entity
     }
 //-----------------------------------
     clicked()
@@ -762,13 +797,15 @@ export class MyButton extends MyObject {
        {
         case 'home':
           this.handleHome();
-          break;
-        case 'settings':
-          this.handleSettings();
-          break;
+          break
+        case 'remove':
+          planeSelected.removeFromScene()
+          planeSelected = undefined
+          positionDashboardAndShow(false)
+          break
         case 'close':
-          positionDashboardAndShow(false);
-          break;
+          positionDashboardAndShow(false)
+          break
       }
 
 
@@ -799,6 +836,7 @@ class PlaneLoggerSystem extends createSystem({
 
 
     if(true || this.plane.semanticLabel === "wall" || this.plane.semanticLabel === "table")
+      if(this.plane.semanticLabel !== "floor") //dangerous for user no longer see where he is walking!
     {
          const planeEntity = entity
          const planeObj = entity.object3D
@@ -806,7 +844,7 @@ class PlaneLoggerSystem extends createSystem({
          const mesh = createDraggableMesh(WHminMax.myWidth, WHminMax.myHeight, undefined, true, 0);
 
           // 2. Turn it into an IWSDK entity that is interactable & draggable
-          const draggableEntity = world
+          const myDetectedPlaneEntity = world
             .createTransformEntity(mesh)
             .addComponent(Interactable, {})
             //.addComponent(Pressed) needs two clicks to activate
@@ -822,24 +860,25 @@ class PlaneLoggerSystem extends createSystem({
 
                */
 
-          draggableEntity.meshWithBorder = mesh
+          myDetectedPlaneEntity.detectedPlaneEntity = entity
+          myDetectedPlaneEntity.meshWithBorder = mesh
           addBorderToMesh(mesh, undefined, planeObj)
 
-          draggableEntity.object3D.visible = showingWallsAndTable
+          myDetectedPlaneEntity.object3D.visible = showingWallsAndTable
 
           // 3. Align it with the plane pose (center-ish)
-          draggableEntity.object3D.position.copy(planeObj.position);
-          draggableEntity.object3D.quaternion.copy(planeObj.quaternion);
-          draggableEntity.object3D.rotateX(-Math.PI / 2)
+          myDetectedPlaneEntity.object3D.position.copy(planeObj.position);
+          myDetectedPlaneEntity.object3D.quaternion.copy(planeObj.quaternion);
+          myDetectedPlaneEntity.object3D.rotateX(-Math.PI / 2)
 
-          draggableEntity.object3D.updateMatrixWorld();
+          myDetectedPlaneEntity.object3D.updateMatrixWorld();
 
           // 4. Keep a reference so we can clean it later
-          planeEntity._draggableEntity = draggableEntity;
+          planeEntity._myDetectedPlaneEntity = myDetectedPlaneEntity;
 
-          const myPlane = new MyPlane(draggableEntity, mesh)
+          const myPlane = new MyPlane(myDetectedPlaneEntity, mesh)
           myPlane.label = this.plane.semanticLabel
-          draggableEntity.myObject.WHminMax = WHminMax
+          myDetectedPlaneEntity.myObject.WHminMax = WHminMax
 
           myPlane.persistentInfo = {
                                   id: myPlane.id,
@@ -863,16 +902,17 @@ class PlaneLoggerSystem extends createSystem({
     // Called when a plane is removed/lost
     this.queries.planes.subscribe('disqualify', (entity) => {
 
-      const id = entity.id || entity.object3D?.uuid
-      consoleLogIfIsInLocalhost('Plane removed: ' + id);
-      entity.detectedNOTremoved = false
-      const myPlane = mapEntityIDtoMyPlane.get(id)
-      if(!myPlane)
-          return
-      mapEntityIDtoMyPlane.delete(id)
-      world.scene.remove(myPlane.entity)
-      mapWallTableIDtoPersistentInfo.delete(myPlane.persistentInfo.id)
+      let myDetectedPlaneEntity
+      for(let [id, entityLoop] of mapEntityIDtoMyPlane)
+        if(entity === entityLoop.detectedPlaneEntity
+            || entity.object3D.uuid === entityLoop.detectedPlaneEntity.object3D.uuid)
+          {
+              myDetectedPlaneEntity = entityLoop
+              break
+          }
 
+      if(myDetectedPlaneEntity)
+          myDetectedPlaneEntity.myObject.removeFromScene()
 
       // Clean up any content attached to this plane if needed
     });
@@ -884,6 +924,29 @@ class PlaneLoggerSystem extends createSystem({
       // e.g., keep something aligned with a moving plane
     });
   }
+}
+function removeEntityFromScene(entity)
+{
+if(entity)
+  entity.destroy();
+/* does all of the below
+const object3D = entity.object3D;
+if (object3D.parent)
+  object3D.parent.remove(object3D);
+world.removeEntity(entity);
+world.deleteEntity(entity);
+
+ */
+}
+//---------------------------------------------------
+function makeThisAndChildrenPointToEntity(meshOrOther, entity)
+{
+    if(!meshOrOther)
+        return
+    meshOrOther.entity = entity
+    if(meshOrOther.children)
+        for(let child of meshOrOther.children)
+            makeThisAndChildrenPointToEntity(child, entity)
 }
 //---------------------------------------------------
 function createDraggableMesh(width, height, deep = 0.01, transparent = true, opacity = 0.3) {
@@ -948,7 +1011,6 @@ class XRSessionLifecycleSystem extends createSystem({}, {})
 
     window.addVideosNotYetAdded()
 
-
     // XR session just started
     if (this.lastState === 'non-immersive' && state === 'visible')
     {
@@ -958,8 +1020,16 @@ class XRSessionLifecycleSystem extends createSystem({}, {})
 
 
       console.log('[IWSDK] XR session started');
+
+
       closePopover()
 
+        if (!world.session.enabledFeatures.includes('plane-detection')) {
+            {
+                world.session.end()
+                showMessageErrorOnSOSforDuration("WebXR access fail. Set browser flags to enable WebXR plane-detection", 5000)
+                return
+            }}
 
       // Check strictly what is enabled
       if(USE_ANCHORS)
@@ -1023,6 +1093,15 @@ const assets = {
   }
 };
 
+myWorldCreate()
+
+async function myWorldCreate()
+{
+
+if (! await navigator.xr.isSessionSupported('immersive-ar'))
+    return showMessageErrorOnSOSforDuration("Augmented reality is not supported")
+
+
 World.create(document.getElementById('scene-container'), {
   assets,
   xr: {
@@ -1032,7 +1111,7 @@ World.create(document.getElementById('scene-container'), {
     features: { handTracking: true
               //, anchors: { required: false }
               //, persistentAnchors: { required: true }
-              , hitTest: { required: true }, planeDetection: { required: true }, meshDetection: false, layers: { required: false } }
+              , hitTest: { required: true }, planeDetection: { required: false }, meshDetection: false, layers: { required: false } }
   },
   features: { locomotion: false, grabbing: false, physics: true, sceneUnderstanding: true, enableGrabbing: false
                         , interaction: {
@@ -1044,7 +1123,8 @@ World.create(document.getElementById('scene-container'), {
     // (It is rarely 'required' because the app should fallback if not supported)
     //optionalFeatures: ['persistent-anchors']
 
-}).then((world) => {
+})
+  .then((world) => {
 
   window.world = world
 
@@ -1062,7 +1142,7 @@ World.create(document.getElementById('scene-container'), {
   robotMesh.position.set(-1.2, 0.4, -1.8);
   robotMesh.scale.setScalar(1);
   
-  world
+  const robotEntity = world
     .createTransformEntity(robotMesh)
     .addComponent(Interactable)
     .addComponent(Robot)
@@ -1076,6 +1156,7 @@ World.create(document.getElementById('scene-container'), {
       movementMode: MovementMode.MoveFromTarget
     })
 
+const myRobot = new MyRobot(robotEntity, robotMesh)
 
 /*
   const panelEntity = world
@@ -1179,7 +1260,14 @@ if(false && isInLocalhost)
 myAirVideos_afterWorldCreate()
 
 
-});
+})
+.catch((e) => {
+    //NEVER CALLED!*! even when there is an error
+    showMessageErrorOnSOSforDuration("WebXR access fail. Set browser flags to enable WebXR planes.")
+})
+;
+
+} //static async myWorldCreate()
 
 //------------------------------
   function calculateWidthHeightAreaFromPolygon(polygon)
