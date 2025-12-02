@@ -12,7 +12,11 @@ const mapBaseAppID_to_AirVideo = new Map()
 
 var CLICKED_BY_ENTITY_NOT_TOUCH = true //IMPORTANT: changes to false to avoid two clicks when touch devices are detected
 
+var global_player
+var lastCodePlayed
 
+const CODE_START = "J9sNK_xPvNc"
+const CODE_WEBXR = "fE9ETElyp_E"
 
 var lang = 0//navigator.language
 var languageBeforeLogin = lang
@@ -51,7 +55,9 @@ var confirmBeforeUnload
 
 var deviceUniqueID
 
-var showingWallsAndTable
+var showingWallsAndTable = true //same as a possible editNOTplay variable
+
+
 
 var lastPopoverUniqueID, lastPopoverContent
 
@@ -404,6 +410,9 @@ const codes = window.localStorage.getItem("codes")
   if( VideosCut.videosSelected.size === 0)
     importFromPresetLists()
 }
+
+
+playInPopover(VideosCut.videosSelected.size ? CODE_WEBXR : CODE_START)
 
 }
 //-----------------------------------------------------------------
@@ -1697,13 +1706,59 @@ function playThisCode(code, popover = true) //strange but needed!!!
     showPopoverWithContent(s, "playThisCode")
 }
 //-------------------------------------------------------------
-function playInPopover(code) {
-    let s = "<div id='youtube_player'></div>"
+function maximizeMinimizeVideoPlayer(maximizeNOTminimize) {
 
-    showPopoverWithContent(s, "playInPopover", undefined, code)
+    let arr = $(".hide_maximizing_video_player")
+    for(let element of arr)
+    {
+        if(maximizeNOTminimize)
+            element.setAttribute("beforeHiding", element.style.display)
+        element.style.display = maximizeNOTminimize ? "none" : element.getAttribute("beforeHiding")
+    }
+    const div = document.getElementById("div_parent_player")
+    div.style.maxHeight = maximizeNOTminimize ? "" : "240px"
+    div.style.width = maximizeNOTminimize ? "100%" : ""
+    div.style.height = (document.body.offsetHeight - 45) + "px"
+    div.style.aspectRatio = maximizeNOTminimize ? "" : "640/390"
+
+    $(".show_maximizing_video_player").css("display", maximizeNOTminimize ? "" : "none")
+
+}
+//-------------------------------------------------------------
+function playInPopover(code, notCodeStartORcodeWebXR) {
 
 
-    const player = new YT.Player('youtube_player', {
+       if(code === CODE_START)
+            document.getElementById("radio_start").checked = true
+        else if(code === CODE_WEBXR)
+            document.getElementById("radio_webxr").checked = true
+        else
+            document.getElementById("radio_play").checked = true
+
+    const isCodeStartOrCodeWebXR = code === CODE_START || code === CODE_WEBXR
+    if(!code || (isCodeStartOrCodeWebXR && notCodeStartORcodeWebXR))
+      return showMessageErrorOnSOSforDuration("Please, click on an available video!")
+
+
+    if(lastCodePlayed === code)
+    {
+        if(world.session)
+            endWebXR()
+        maximizeMinimizeVideoPlayer(true)
+
+        return
+    }
+
+    lastCodePlayed = code
+
+    if(global_player)
+        global_player.loadVideoById({
+          videoId: code,
+          // startSeconds: 30,
+          //endSeconds: 90
+        })
+    else
+    global_player = new YT.Player('youtube_player', {
           height: '390',
           width: '640',
           videoId: code, // <-- put your YouTube video ID here
@@ -1798,4 +1853,9 @@ function stopApp() {
         castSession.endSession(true); // true = stop casting on the TV as well
     }
 }
-
+//-------------------------------------------
+function endWebXR()
+{
+ world.session.end()
+ world.session = undefined
+}

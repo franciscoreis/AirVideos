@@ -100,8 +100,6 @@ import { createDashboard
 
 
 const USE_ANCHORS = false
-
-
 const THREE = {
   LoadingManager: LoadingManager
   ,TextureLoader: TextureLoader
@@ -508,7 +506,7 @@ clicked()
 {
 const entity = this.entity
 
-if(entity.placed)
+if(!showingWallsAndTable)
     return playThisCode(entity.myObject.video.code)
 
 
@@ -562,22 +560,29 @@ const entity = this.entity
 let entitiesSelected = getPlanesSelected(undefined, true)
 
 
+
+
 if(!entity.selected)
 {
-  positionDashboardAndShow()
   planeSelected = this
   entitiesCommand(entitiesSelected, "SELECT", false)
   this.select(true)
 
-  let objects = getObjectsSelected(undefined, undefined, undefined, true, undefined) //selected
-  if (objects.size === 0)
-    objects = objects = getObjectsSelected(undefined, undefined, undefined, undefined, false) //not placed
+    positionDashboardAndShow()
+
+
+    //FIRST PLACES ALL THAT ARE NOT PLACED (do not want videos free in the space disturbing the user's view)
+  let objects = getObjectsSelected(undefined, undefined, undefined, undefined, false) //not placed
+  const thereAreUnplacedObjects = objects.size > 0
+  if (!thereAreUnplacedObjects)
+    objects = getObjectsSelected(undefined, undefined, undefined, true, undefined) //selected
   if (objects.size > 0) //import
   {
     joinEntitiesToPlane(this, objects)
-    entitiesCommand(objects, "SELECT", true) //if not select become selected
+    if(!thereAreUnplacedObjects)
+      entitiesCommand(objects, "SELECT", true) //if not select become selected
   }
-} else if(!positionDashBoardNow)
+} else if(!dashboardRoot.object3D.visible)
     positionDashboardAndShow(true)
 else if(entitiesSelected.size) //deselect if any is selected
    entitiesCommand(this.entitiesInPlane(true), "SELECT", false)
@@ -795,8 +800,9 @@ export class MyButton extends MyObject {
 
        switch (this.id)
        {
-        case 'home':
-          this.handleHome();
+        case 'exit':
+          positionDashboardAndShow(false)
+          endWebXR()
           break
         case 'remove':
           planeSelected.removeFromScene()
@@ -1026,7 +1032,8 @@ class XRSessionLifecycleSystem extends createSystem({}, {})
 
         if (!world.session.enabledFeatures.includes('plane-detection')) {
             {
-                world.session.end()
+                exitWebXR()
+
                 showMessageErrorOnSOSforDuration("WebXR access fail. Set browser flags to enable WebXR plane-detection", 5000)
                 return
             }}
@@ -1176,6 +1183,7 @@ const myRobot = new MyRobot(robotEntity, robotMesh)
   panelEntity.object3D.position.set(0, 1.29, -1.9);
 */
 
+ /*
   const webxrLogoTexture = AssetManager.getTexture('webxr');
   webxrLogoTexture.colorSpace = SRGBColorSpace;
   const logoBanner = new Mesh(
@@ -1194,6 +1202,8 @@ const myRobot = new MyRobot(robotEntity, robotMesh)
     })
   logoBanner.position.set(0, 1, 1.8);
   logoBanner.rotateY(Math.PI);
+
+  */
 
 
 world

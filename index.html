@@ -37,13 +37,14 @@
     </style>
 
 
-    <script type="module" crossorigin src="./assets/index-T9kZcdts.js"></script>
+    <script type="module" crossorigin src="./assets/index-BSXPxqm2.js"></script>
   </head>
   <body onLoad='initialize_airvideos()' style="margin: 0;font-family:Calibri,Arial,sans-serif">
   <div id="for_sibling_of_parent_element"></div><div id="for_parent_element" style="position: relative">
     <div id="scene-container"></div>
     <div id="2D-info-div" style="position: absolute;top:0px;left:0px;width:100%;background:#fff;user-select:none">
       <center>
+        <div class='hide_maximizing_video_player' style="display:inline-block;vertical-align:middle">
         <div id="top_message_duration"></div>
         <br>
           <img src="https://storage.googleapis.com/cdniverse/images/assistant.png" title="Umniguru" onclick="event.stopPropagation(); showInstructions()" style="cursor: pointer; height:32px;vertical-align:middle">
@@ -55,11 +56,18 @@
         </nobr>
         <!--  <google-cast-launcher id="cast-button"></google-cast-launcher> -->
 
-
-        <br><a target="_blank" href="https://youtube.com"><img src="https://storage.googleapis.com/cdniverse/images/1298778_youtube_play_video_icon.svg" style="height:30px;cursor:pointer;vertical-align: middle" title="YouTube web site" alt="YouTube web site" ></a>
+        <br><br><a target="_blank" href="https://youtube.com"><img src="https://storage.googleapis.com/cdniverse/images/1298778_youtube_play_video_icon.svg" style="height:30px;cursor:pointer;vertical-align: middle" title="YouTube web site" alt="YouTube web site" ></a>
             &nbsp;<input class="demo_inputToReceiveYoutubeURLorCode" id="inputToReceiveYoutubeURLorCode" onchange="event.stopPropagation();changedInputToReceiveYoutubeURLorCode(undefined, event)" type="text" style="width:250px" placeholder=" youtube url, youtube code">
             <b onclick="event.stopPropagation();changedInputToReceiveYoutubeURLorCode(undefined, event)" style="color:red;font-size:30px;vertical-align:text-bottom;cursor:pointer;vertical-align: bottom">&nbsp;+&nbsp;</b>
-        <div style="overflow: auto;max-height: 80vh; width: 100vw; box-sizing: border-box"><div id="show_videos_in_2D"></div></div>
+        <br><br><div style="font-size: 120%"><label><input onClick="playInPopover(CODE_START)" id="radio_start" type="radio" checked name="radios_video_play">start</label> &nbsp; <label><input onClick="playInPopover(CODE_WEBXR)" id="radio_webxr" type="radio" name="radios_video_play">WebXR</label> &nbsp; <label><input onClick="playInPopover(lastCodePlayed, true)" id="radio_play" type="radio" name="radios_video_play">play</label></div>
+        <br><br><img onclick="world.launchXR()" src="https://storage.googleapis.com/cdniverse/images/WebXR/webxr.png" style="height:38px;vertical-align:middle;cursor:pointer" title="enter WebXR">
+          &nbsp; <a target="_blank" href="https://developers.meta.com/horizon/documentation/web/iwsdk-overview"><img src="https://storage.googleapis.com/cdniverse/AI/models/llama-meta.webp" style="height:48px;vertical-align:middle;cursor:pointer" title="META's Immersive Web SDK"></a>
+          &nbsp; <img onclick="playInPopover(lastCodePlayed)" src="https://storage.googleapis.com/cdniverse/images/screenshot_frame_24dp_000000_FILL0_wght400_GRAD0_opsz24.svg" style="height:38px;vertical-align:middle;cursor:pointer" title="video full screen">
+
+        </div>
+        <div id='div_parent_player' style="display:inline-block;vertical-align:middle;overflow:hidden;max-height:240px;aspect-ratio: 640/390"><div id='youtube_player' style="max-height:100%;max-width:100%;min-height:100%;min-width:100%"></div></div>
+        <table class='wm show_maximizing_video_player' style="display:none;width:100%;height:40px"><tr><td class="wm"><a href='javascript:maximizeMinimizeVideoPlayer(false)' style="vertical-align:sub;text-decoration:none">Show all</a> &nbsp; </td><td class="wm"> &nbsp; <img onclick="world.launchXR()" src="https://storage.googleapis.com/cdniverse/images/WebXR/webxr.png" style="height:24px;vertical-align:sub"></td></tr></table>
+        <div class='hide_maximizing_video_player' style="overflow: auto;max-height: 80vh; width: 100vw; box-sizing: border-box"><br><br><div id="show_videos_in_2D"></div></div>
       </center>
     </div>
     <div id="2D-info-div-bottom" style="display:none;position: absolute;bottom:20px;left:50%;transform:translate(-50%, 0);border-radius:10px;padding:10px;color:white;background:red;user-select:none;text-align: center">

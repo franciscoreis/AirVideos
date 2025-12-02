@@ -40,7 +40,7 @@ export function createDashboard(world) {
   const spacing = 0.05;
 
   const buttonsConfig = [
-    { id: 'home',     label: 'Home',     x: -0.4 },
+    { id: 'exit',     label: 'Exit',     x: -0.4 },
     { id: 'remove', label: 'Remove', x:  0.0 },
     { id: 'close',    label: 'Close',    x:  0.4 },
   ];
