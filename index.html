@@ -15,6 +15,7 @@
     <script src="https://www.youtube.com/iframe_api"></script>
 
     <script type="text/javascript" src="/src/airvideos.js"></script>
+    <script type="text/javascript" src="/src/qrcode.min.js"></script>
 
     <style>
       .wm{padding:0px;margin:0px;border-spacing:0;vertical-align:middle}
@@ -37,7 +38,7 @@
     </style>
 
 
-    <script type="module" crossorigin src="./assets/index-BSXPxqm2.js"></script>
+    <script type="module" crossorigin src="./assets/index-XMynmtaO.js"></script>
   </head>
   <body onLoad='initialize_airvideos()' style="margin: 0;font-family:Calibri,Arial,sans-serif">
   <div id="for_sibling_of_parent_element"></div><div id="for_parent_element" style="position: relative">
@@ -47,26 +48,30 @@
         <div class='hide_maximizing_video_player' style="display:inline-block;vertical-align:middle">
         <div id="top_message_duration"></div>
         <br>
-          <img src="https://storage.googleapis.com/cdniverse/images/assistant.png" title="Umniguru" onclick="event.stopPropagation(); showInstructions()" style="cursor: pointer; height:32px;vertical-align:middle">
-          &nbsp; <img src="https://storage.googleapis.com/cdniverse/AirVideosXYZ/images/airvideos_text_5.svg" style="max-height:2em;max-width:80%;vertical-align:middle" >
-        &nbsp; <button class="hideWhenLogin" onclick="event.stopPropagation();pageLogin()" style="background-color:#fff" title="login"><img src="https://storage.googleapis.com/cdniverse/LoginLogout/nine_squares_squared_LOGIN.svg" style="height:22px;vertical-align:middle" alt="login" ></button>
-        <nobr>
-          <button class="showWhenLogin" onclick="event.stopPropagation();event.preventDefault();if(confirm('Logout?'))window.location.reload()" title="logout" style="display:none;cursor: pointer; background-color: rgb(255, 255, 255);"><img src="https://storage.googleapis.com/cdniverse/LoginLogout/nine_squares_squared_LOGOUT.svg" style="height:22px"></button>
-          &nbsp;<img onClick="manageCloudObjects()" class="showWhenLogin" src="https://storage.googleapis.com/cdniverse/images/352277_cloud_queue_icon.svg" style="display:none;height:2em;vertical-align:bottom">
-        </nobr>
+          <img src="https://storage.googleapis.com/cdniverse/images/assistant.png" title="Umniguru" onclick="event.stopPropagation(); showInstructions()" style="cursor: pointer; height:28px;vertical-align:middle">
+          <img src="https://storage.googleapis.com/cdniverse/AirVideosXYZ/images/airvideos_text_5.svg" style="max-height:1.8em;max-width:80%;vertical-align:middle">
+          <img onClick="manageCloudObjects()" class="showWhenLogin" src="https://storage.googleapis.com/cdniverse/images/352277_cloud_queue_icon.svg" style="height:2em;margin-left:-5px;vertical-align:middle">
         <!--  <google-cast-launcher id="cast-button"></google-cast-launcher> -->
 
         <br><br><a target="_blank" href="https://youtube.com"><img src="https://storage.googleapis.com/cdniverse/images/1298778_youtube_play_video_icon.svg" style="height:30px;cursor:pointer;vertical-align: middle" title="YouTube web site" alt="YouTube web site" ></a>
-            &nbsp;<input class="demo_inputToReceiveYoutubeURLorCode" id="inputToReceiveYoutubeURLorCode" onchange="event.stopPropagation();changedInputToReceiveYoutubeURLorCode(undefined, event)" type="text" style="width:250px" placeholder=" youtube url, youtube code">
-            <b onclick="event.stopPropagation();changedInputToReceiveYoutubeURLorCode(undefined, event)" style="color:red;font-size:30px;vertical-align:text-bottom;cursor:pointer;vertical-align: bottom">&nbsp;+&nbsp;</b>
-        <br><br><div style="font-size: 120%"><label><input onClick="playInPopover(CODE_START)" id="radio_start" type="radio" checked name="radios_video_play">start</label> &nbsp; <label><input onClick="playInPopover(CODE_WEBXR)" id="radio_webxr" type="radio" name="radios_video_play">WebXR</label> &nbsp; <label><input onClick="playInPopover(lastCodePlayed, true)" id="radio_play" type="radio" name="radios_video_play">play</label></div>
-        <br><br><img onclick="world.launchXR()" src="https://storage.googleapis.com/cdniverse/images/WebXR/webxr.png" style="height:38px;vertical-align:middle;cursor:pointer" title="enter WebXR">
-          &nbsp; <a target="_blank" href="https://developers.meta.com/horizon/documentation/web/iwsdk-overview"><img src="https://storage.googleapis.com/cdniverse/AI/models/llama-meta.webp" style="height:48px;vertical-align:middle;cursor:pointer" title="META's Immersive Web SDK"></a>
+            &nbsp;<input class="demo_inputToReceiveYoutubeURLorCode" id="inputToReceiveYoutubeURLorCode" onchange="event.stopPropagation();changedInputToReceiveYoutubeURLorCode(undefined, event)" type="text" style="width:200px" placeholder=" youtube url, youtube code">
+            <b onclick="event.stopPropagation();changedInputToReceiveYoutubeURLorCode(undefined, event)" style="color:red;font-size:30px;cursor:pointer;vertical-align:middle">&nbsp;+&nbsp;</b>
+        <br>
+        <br>
+          <a target="_blank" href="https://github.com/franciscoreis/AirVideos" title="GitHub repository"><img src="https://storage.googleapis.com/cdniverse/ViddeoXYZ/images/viddeo_logo_2.svg" style="height:32px;vertical-align:middle;cursor:pointer"></a>
+          &nbsp;+<a target="_blank" href="https://developers.meta.com/horizon/documentation/web/iwsdk-overview"><img src="https://storage.googleapis.com/cdniverse/AI/models/llama-meta.webp" style="height:48px;vertical-align:middle;cursor:pointer" title="META's Immersive Web SDK"></a>
+          &nbsp; &nbsp; &nbsp; <img onclick="world.launchXR()" src="https://storage.googleapis.com/cdniverse/images/WebXR/webxr.png" style="height:38px;vertical-align:middle;cursor:pointer" title="enter WebXR">
+          &nbsp;&nbsp; <img class="hideWhenLogin" onclick="event.stopPropagation();pageLogin()" src="https://storage.googleapis.com/cdniverse/LoginLogout/nine_squares_squared_LOGIN.svg" style="cursor: pointer;height:32px;vertical-align:middle" alt="login" title="Umniverse login">
+          <img class="showWhenLogin" onclick="event.stopPropagation();if(confirm('Logout?'))window.location.reload()" title="logout" style="display:none;height:32px;vertical-align:middle" src="https://storage.googleapis.com/cdniverse/LoginLogout/nine_squares_squared_LOGOUT.svg" title="Umniverse logout">
           &nbsp; <img onclick="playInPopover(lastCodePlayed)" src="https://storage.googleapis.com/cdniverse/images/screenshot_frame_24dp_000000_FILL0_wght400_GRAD0_opsz24.svg" style="height:38px;vertical-align:middle;cursor:pointer" title="video full screen">
-
+          <br><br>videos &nbsp; <label><input class="radio_mine_view" onClick="selectMineNOTshared(true)" type="radio" name="min_or_shared" checked> select</label> &nbsp; <label><input class="radio_shared_view" onClick="selectMineNOTshared(false)" type="radio" name="min_or_shared"> game</label>
         </div>
-        <div id='div_parent_player' style="display:inline-block;vertical-align:middle;overflow:hidden;max-height:240px;aspect-ratio: 640/390"><div id='youtube_player' style="max-height:100%;max-width:100%;min-height:100%;min-width:100%"></div></div>
-        <table class='wm show_maximizing_video_player' style="display:none;width:100%;height:40px"><tr><td class="wm"><a href='javascript:maximizeMinimizeVideoPlayer(false)' style="vertical-align:sub;text-decoration:none">Show all</a> &nbsp; </td><td class="wm"> &nbsp; <img onclick="world.launchXR()" src="https://storage.googleapis.com/cdniverse/images/WebXR/webxr.png" style="height:24px;vertical-align:sub"></td></tr></table>
+        <div id='div_parent_parent_player' style="display:inline-block;vertical-align:middle;">
+           <div class="hide_maximizing_video_player" style="font-size: 120%"><label><input onClick="playInPopover(CODE_START)" id="radio_start" type="radio" checked name="radios_video_play">start</label> &nbsp; <label><input onClick="playInPopover(CODE_WEBXR)" id="radio_webxr" type="radio" name="radios_video_play">WebXR</label> &nbsp; <label><input onClick="playInPopover(lastCodePlayed, true)" id="radio_play" type="radio" name="radios_video_play">play</label></div>
+           <table class='wm show_maximizing_video_player' style="display:none;width:100%"><tr><td class="wm"><a href='javascript:maximizeMinimizeVideoPlayer(false)' style="vertical-align:sub;text-decoration:none">minimize</a> &nbsp; </td><td class="wm"> &nbsp; <img onclick="resumeWebXR()" src="https://storage.googleapis.com/cdniverse/images/WebXR/webxr.png" style="height:24px;vertical-align:sub;cursor:pointer"></td></tr></table>
+            <div id='div_parent_player' style="border-radius:6px;max-height:200px;aspect-ratio: 640/390;overflow:hidden">
+               <div id='youtube_player' style="max-height:100%;max-width:100%;min-height:100%;min-width:100%"></div></div>
+            </div>
         <div class='hide_maximizing_video_player' style="overflow: auto;max-height: 80vh; width: 100vw; box-sizing: border-box"><br><br><div id="show_videos_in_2D"></div></div>
       </center>
     </div>
@@ -74,7 +79,7 @@
         <b style="line-height: 30px">HELLO to AirVideos.xyz</b>
       <br>Add Youtube videos and arrange
       <br>them in your home or office!
-      <br><b style="line-height: 30px">Thanks to Meta\'s <a target="_blank" href="https://developers.meta.com/horizon/blog/immersive-web-sdk-new-era-spatial-web-development">IWSDK</a></b>
+      <br><b style="line-height: 30px">Thanks to Meta's <a target="_blank" href="https://developers.meta.com/horizon/blog/immersive-web-sdk-new-era-spatial-web-development">IWSDK</a></b>
     </div>
   </div>
   <div popover id="my-popover"></div>

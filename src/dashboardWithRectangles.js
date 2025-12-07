@@ -40,9 +40,10 @@ export function createDashboard(world) {
   const spacing = 0.05;
 
   const buttonsConfig = [
-    { id: 'exit',     label: 'Exit',     x: -0.4 },
-    { id: 'remove', label: 'Remove', x:  0.0 },
-    { id: 'close',    label: 'Close',    x:  0.4 },
+    { id: 'exit',     label: 'Exit',     x: -0.4 , bgColor: "red"},
+    { id: 'remove', label: 'Remove', x:  0.0 , bgColor: "#1591EA" },
+    { id: 'artificial_walls', label: 'walls', x:  0.0 , bgColor: "#1591EA" },
+    { id: 'close',    label: 'Close',    x:  0.4 , bgColor: "#FFDE21" },
   ];
 
   const geometry = new PlaneGeometry(buttonWidth, buttonHeight);
@@ -50,7 +51,7 @@ export function createDashboard(world) {
   buttonsConfig.forEach(cfg => {
 
     //const material = new MeshBasicMaterial({ color: 0x444444 }); // base color
-    const mesh = createTextTexture(cfg.label, {width: 300, height: 100})
+    const mesh = createTextTexture(cfg.label, {width: 300, height: 100, bgColor: cfg.bgColor})
 
     mesh.position.set(cfg.x, 0, 0); // arranged horizontally
 
@@ -68,7 +69,7 @@ export function createDashboard(world) {
         label: cfg.label,
       });
 
-    dashboardButtons.add(buttonEntity);
+    dashboardButtons.set(cfg.id, buttonEntity);
 
     const myButton = new MyButton(buttonEntity, mesh)
     myButton.id = cfg.id

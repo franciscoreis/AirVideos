@@ -148,11 +148,19 @@ window.mapWallTableIDtoPersistentInfo = mapWallTableIDtoPersistentInfo
 var loaded_mapWallTableIDtoPersistentInfo = {}
 
 var positionDashBoardNow = false
-window.dashboardButtons = new Set()
+window.dashboardButtons = new Map()
 
 var planeSelected
+var hasPlaneDetection
+var mapGroupArtificialPlanes = new Map()
+var lastState_artificialPlanesShowing
 
 const mapCodeToEntity = new Map()
+
+const DASHBOARD_WALL = ["exit", "remove", "close"]
+const DASHBOARD_ROBOT = ["exit", "artificial_walls", "close"]
+
+var globalEntity
 
 //-------------------------------
 window.matchEntityHeight = function (targetEntity, referenceEntity)
@@ -198,7 +206,7 @@ window.addVideosNotYetAdded = async function()
   let y = 0.5
   let z = 0.0
 
-  for(let [code, video] of VideosCut.videosSelected)
+  for(let [code, video] of VideosCut.videosAvailable)
   if(!mapCodeToEntity.get(code))
   {
   const headerHeight = 20
@@ -232,8 +240,13 @@ window.addVideosNotYetAdded = async function()
     entity.object3D.position.set(x + 0, y + 1.5, z + -1.5)
     //entity.object3D.rotation.copy(mesh.rotation);
     //entity.object3D.rotateX( -Math.PI / 2 )
-    entity.object3D.scale.setScalar(0.5)
+    entity.object3D.scale.setScalar(0.30)
     entity.object3D.scale.y = -entity.object3D.scale.y
+    entity.object3D.scale.z = -entity.object3D.scale.z
+
+    entity.object3D.before_myScalarSignsForVideos = entity.object3D.scale.clone()
+    entity.object3D.before_myQuaternionSignsForVideos = entity.object3D.quaternion.clone()
+
 
 
     entity.myObject = new MyObjectVideo(entity, mesh, video)
@@ -242,11 +255,13 @@ window.addVideosNotYetAdded = async function()
     video.objectIn3D = undefined
 
     entity.meshWithBorder = mesh
-    addBorderToMesh(mesh, undefined, entity.myObject)
-
+    addBorderToMesh(mesh, undefined)
+    entity.myObject.info = get_mapYoutubeCodesToInfo(video.code)
+    if(entity.myObject.info.selected)
+       entity.myObject.clicked() //to select
+    entity.myObject.info.entity = entity
 
     makeInteractionPriority(entity, 0.1) //interact before the planes
-
 
     x += 0.55
     y += 0.0
@@ -398,18 +413,37 @@ class MyObject
 
   }
 //-----------------------------------------------------------
+makeVisible(visible)
+{
+    makeObject3Dvisible(this.object3D, visible)
+    if(visible)
+    {
+       if (!this.entity.hasComponent(Interactable))
+         this.entity.addComponent(Interactable);
+    }
+else
+    {
+       if (this.entity.hasComponent(Interactable))
+         this.entity.removeComponent(Interactable);
+    }
+}
+//-----------------------------------------------------------
 clicked()
 {
 const entity = this.entity
 entity.selected = !entity.selected
-addBorderToMesh(entity.meshWithBorder, entity.selected ? 0xff0000 : 0xffff00, entity.myObject)
+addBorderToMesh(entity.meshWithBorder, entity.selected ? 0xff0000 : 0xffff00)
 }
 //-----------------------------------------------------------
-select(selectedNOTselected)
+select(selectedNOTselected, doNotCall_selectORnotYoutubeCode)
 {
 const entity = this.entity
+const result = entity.selected !== selectedNOTselected
 entity.selected = selectedNOTselected
-addBorderToMesh(entity.meshWithBorder, entity.selected ? 0xff0000 : 0xffff00, entity.myObject)
+addBorderToMesh(entity.meshWithBorder, entity.selected ? 0xff0000 : 0xffff00)
+if(!doNotCall_selectORnotYoutubeCode && this.info)
+    selectORnotYoutubeCode(this.info.code, selectedNOTselected, true)
+return result //true if changed
 }
 //-----------------------------------------------------------
   async persistEntity() {
@@ -531,7 +565,7 @@ else if (entitiesSelected.size == 1)
 else
    this.select(false)
 
-addBorderToMesh(entity.meshWithBorder, entity.selected ? 0xff0000 : 0xffff00, entity.myObject)
+addBorderToMesh(entity.meshWithBorder, entity.selected ? 0xff0000 : 0xffff00)
 }
 
 }//class MyObjectVideo
@@ -556,8 +590,17 @@ export class MyPlane extends MyObject
 clicked()
 {
 const entity = this.entity
+const planesSelected = getPlanesSelected(entity, true) //all selected
+let entitiesSelected = getObjectsSelected(undefined, undefined, undefined, true, undefined, this) //selected outside this plane
 
-let entitiesSelected = getPlanesSelected(undefined, true)
+if(entitiesSelected.size)
+{
+    entitiesCommand(planesSelected, "SELECT", false)
+    this.select(true)
+    positionDashboardAndShow()
+    joinEntitiesToPlane(this, entitiesSelected, true)//placed by user
+    return
+}
 
 
 
@@ -565,10 +608,10 @@ let entitiesSelected = getPlanesSelected(undefined, true)
 if(!entity.selected)
 {
   planeSelected = this
-  entitiesCommand(entitiesSelected, "SELECT", false)
+  entitiesCommand(planesSelected, "SELECT", false)
   this.select(true)
 
-    positionDashboardAndShow()
+  positionDashboardAndShow()
 
 
     //FIRST PLACES ALL THAT ARE NOT PLACED (do not want videos free in the space disturbing the user's view)
@@ -578,17 +621,24 @@ if(!entity.selected)
     objects = getObjectsSelected(undefined, undefined, undefined, true, undefined) //selected
   if (objects.size > 0) //import
   {
-    joinEntitiesToPlane(this, objects)
+    joinEntitiesToPlane(this, objects, true)//placed by user
     if(!thereAreUnplacedObjects)
       entitiesCommand(objects, "SELECT", true) //if not select become selected
   }
-} else if(!dashboardRoot.object3D.visible)
-    positionDashboardAndShow(true)
-else if(entitiesSelected.size) //deselect if any is selected
-   entitiesCommand(this.entitiesInPlane(true), "SELECT", false)
-else //rearrange
+}
+else //already selected
 {
-
+    let atLeastOne = false
+    for(let [id, entityObject] of this.mapIDtoObjects)
+       if(entityObject.myObject.select(false))
+           atLeastOne = true
+    if(!dashboardRoot.object3D.visible)
+        positionDashboardAndShow(true)
+    else if(!atLeastOne)
+    {
+     //change limitation or orientation
+        entity.myObject.rearrangeObjects()
+    }
 }
 }
 //-------------------------------------------------------------
@@ -689,8 +739,6 @@ rearrangeObjects()
 
   const numObjects = this.mapIDtoObjects.size
 
-
-
   const corners = getPlaneWorldCorners(this.entity.object3D);
 // .distanceTo returns the Euclidean distance in World Units
   const topEdgeLength = corners.tl.distanceTo(corners.tr);
@@ -742,16 +790,23 @@ rearrangeObjects()
    for(let [id, entity] of this.mapIDtoObjects)
    {
 
-     entity.object3D.scale.setScalar(scale)
-
      const pointXYZ = getPointFromPercentage(this.entity.object3D
           ,  (nMax + 0.5) / nMax_max * (topEdgeLength - freeSpaceX) /topEdgeLength  + freeSpaceX / topEdgeLength / 2
           , 1 - ((nMin + 0.5) / nMin_max * (leftEdgeLength - freeSpaceY) /leftEdgeLength  + freeSpaceY / leftEdgeLength / 2)
           )
      entity.object3D.position.copy(pointXYZ);
-
      //entity.object3D.position.copy(corners.bl);
 
+     entity.object3D.scale.setScalar(scale)
+
+
+
+       if(this.myScalarSignsForVideos) //useful to reorientate videos to face users (no upside down or reading from right)!
+       {
+       entity.object3D.scale.x *= this.myScalarSignsForVideos.x
+       entity.object3D.scale.y *= this.myScalarSignsForVideos.y
+       entity.object3D.scale.z *= this.myScalarSignsForVideos.z
+      }
 
      entity.object3D.quaternion.copy(this.entity.object3D.quaternion)
      entity.object3D.updateMatrixWorld();
@@ -782,7 +837,8 @@ export class MyRobot extends MyObject {
     clicked()
     {
       showOrHideWallsTables()
-      AudioUtils.play(this.entity);
+      positionDashboardAndShow(showingWallsAndTable, DASHBOARD_ROBOT)
+      AudioUtils.play(this.entity)
     }
 
 } //class MyRobot
@@ -800,16 +856,19 @@ export class MyButton extends MyObject {
 
        switch (this.id)
        {
-        case 'exit':
+        case "exit":
           positionDashboardAndShow(false)
           endWebXR()
           break
-        case 'remove':
+        case "remove":
           planeSelected.removeFromScene()
           planeSelected = undefined
           positionDashboardAndShow(false)
           break
-        case 'close':
+        case "artificial_walls":
+            artificialPlanesShowing(lastState_artificialPlanesShowing + 1)
+            break
+        case "close":
           positionDashboardAndShow(false)
           break
       }
@@ -843,9 +902,41 @@ class PlaneLoggerSystem extends createSystem({
 
     if(true || this.plane.semanticLabel === "wall" || this.plane.semanticLabel === "table")
       if(this.plane.semanticLabel !== "floor") //dangerous for user no longer see where he is walking!
-    {
-         const planeEntity = entity
-         const planeObj = entity.object3D
+      {
+          addMyPlane(entity.object3D, WHminMax, this.plane.semanticLabel)
+      }
+
+    });
+
+    // Called when a plane is removed/lost
+    this.queries.planes.subscribe('disqualify', (entity) => {
+
+      let myDetectedPlaneEntity
+      for(let [id, entityLoop] of mapEntityIDtoMyPlane)
+        if(entity.object3D.uuid === entityLoop.original_object3D.uuid)
+          {
+              myDetectedPlaneEntity = entityLoop
+              break
+          }
+
+      if(myDetectedPlaneEntity)
+          myDetectedPlaneEntity.myObject.removeFromScene()
+
+      // Clean up any content attached to this plane if needed
+    });
+  }
+
+  update() {
+    // Each frame you can iterate existing planes if you want
+    this.queries.planes.entities.forEach((entity) => {
+      // e.g., keep something aligned with a moving plane
+    });
+  }
+}
+//----------------------------------------------------------
+         function addMyPlane(planeObj, WHminMax, semanticLabel, config = {})
+         {
+         const scalar = config.scalar || 1
 
          const mesh = createDraggableMesh(WHminMax.myWidth, WHminMax.myHeight, undefined, true, 0);
 
@@ -866,24 +957,27 @@ class PlaneLoggerSystem extends createSystem({
 
                */
 
-          myDetectedPlaneEntity.detectedPlaneEntity = entity
+          myDetectedPlaneEntity.original_object3D = planeObj
           myDetectedPlaneEntity.meshWithBorder = mesh
-          addBorderToMesh(mesh, undefined, planeObj)
-
-          myDetectedPlaneEntity.object3D.visible = showingWallsAndTable
+          addBorderToMesh(mesh, undefined)
 
           // 3. Align it with the plane pose (center-ish)
           myDetectedPlaneEntity.object3D.position.copy(planeObj.position);
           myDetectedPlaneEntity.object3D.quaternion.copy(planeObj.quaternion);
           myDetectedPlaneEntity.object3D.rotateX(-Math.PI / 2)
+          myDetectedPlaneEntity.object3D.scale.setScalar(scalar)
+
 
           myDetectedPlaneEntity.object3D.updateMatrixWorld();
 
-          // 4. Keep a reference so we can clean it later
-          planeEntity._myDetectedPlaneEntity = myDetectedPlaneEntity;
-
           const myPlane = new MyPlane(myDetectedPlaneEntity, mesh)
-          myPlane.label = this.plane.semanticLabel
+
+          myPlane.myScalarSignsForVideos = config.myScalarSignsForVideos
+           myPlane.makeVisible(showingWallsAndTable)
+
+
+
+          myPlane.label = semanticLabel
           myDetectedPlaneEntity.myObject.WHminMax = WHminMax
 
           myPlane.persistentInfo = {
@@ -899,38 +993,10 @@ class PlaneLoggerSystem extends createSystem({
          mapWallTableIDtoPersistentInfo.set(myPlane.persistentInfo.id, myPlane.persistentInfo)
 
 
-      }
+         return myDetectedPlaneEntity
 
-
-
-    });
-
-    // Called when a plane is removed/lost
-    this.queries.planes.subscribe('disqualify', (entity) => {
-
-      let myDetectedPlaneEntity
-      for(let [id, entityLoop] of mapEntityIDtoMyPlane)
-        if(entity === entityLoop.detectedPlaneEntity
-            || entity.object3D.uuid === entityLoop.detectedPlaneEntity.object3D.uuid)
-          {
-              myDetectedPlaneEntity = entityLoop
-              break
-          }
-
-      if(myDetectedPlaneEntity)
-          myDetectedPlaneEntity.myObject.removeFromScene()
-
-      // Clean up any content attached to this plane if needed
-    });
-  }
-
-  update() {
-    // Each frame you can iterate existing planes if you want
-    this.queries.planes.entities.forEach((entity) => {
-      // e.g., keep something aligned with a moving plane
-    });
-  }
-}
+         }
+//----------------------------------------------------------
 function removeEntityFromScene(entity)
 {
 if(entity)
@@ -1024,19 +1090,14 @@ class XRSessionLifecycleSystem extends createSystem({}, {})
         window.xrSession = world.session
         myAirVideos_afterSessionStarts()
 
+        createArtificialPlanes()
 
       console.log('[IWSDK] XR session started');
 
 
       closePopover()
 
-        if (!world.session.enabledFeatures.includes('plane-detection')) {
-            {
-                exitWebXR()
-
-                showMessageErrorOnSOSforDuration("WebXR access fail. Set browser flags to enable WebXR plane-detection", 5000)
-                return
-            }}
+      hasPlaneDetection = world.session.enabledFeatures.includes('plane-detection')
 
       // Check strictly what is enabled
       if(USE_ANCHORS)
@@ -1071,7 +1132,7 @@ class XRSessionLifecycleSystem extends createSystem({}, {})
       // 👉 your “on XR end” logic here
     }
 
-    this.lastState = state;
+    this.lastState = state
   }
 }
 
@@ -1108,7 +1169,6 @@ async function myWorldCreate()
 if (! await navigator.xr.isSessionSupported('immersive-ar'))
     return showMessageErrorOnSOSforDuration("Augmented reality is not supported")
 
-
 World.create(document.getElementById('scene-container'), {
   assets,
   xr: {
@@ -1135,14 +1195,9 @@ World.create(document.getElementById('scene-container'), {
 
   window.world = world
 
-  const { camera } = world;
+  const { camera } = world
 
-
-  camera.position.set(0, 1, 0.5);
-
-
-
-
+  camera.position.set(0, 1, 0.5)
 
   const { scene: robotMesh } = AssetManager.getGLTF('robot');
   // defaults for AR
@@ -1278,7 +1333,217 @@ myAirVideos_afterWorldCreate()
 ;
 
 } //static async myWorldCreate()
+//------------------------------
+function createArtificialPlanes()
+{
+          if(mapGroupArtificialPlanes.size)
+              return
 
+          const mesh = createTextTexture("Kjljlkjlkjlk", {width: 3000, height: 1000, bgColor: "#00ff00"})
+          if(!globalEntity)
+                {
+                globalEntity = world.createTransformEntity(mesh)
+                globalEntity.removeComponent(Interactable)
+                globalEntity.object3D.visible = false
+                }
+
+            let x = 0
+            let y = 0
+            let z = 0
+
+            const object3D = globalEntity.object3D
+            const WHminMax = calculateWidthHeightAreaFromPlane(object3D)
+
+            object3D.quaternion.setFromEuler(new THREE.Euler( -Math.PI / 2, 0, 0, 'XYZ'));
+            object3D.scale.y = -globalEntity.object3D.scale.y
+
+            let groupArtificialPlanes = new Set()
+            mapGroupArtificialPlanes.set(0, groupArtificialPlanes) //none!
+
+            groupArtificialPlanes = new Set()
+            mapGroupArtificialPlanes.set(2, groupArtificialPlanes)
+
+            // wall at front
+            object3D.position.set(x + 0, y + 1.5, z - 3)
+            groupArtificialPlanes.add(addMyPlane(object3D, WHminMax, "wall", {scalar: 1}))
+
+            // wall at back
+            object3D.position.set(x, y + 1.5, z + 3)
+            groupArtificialPlanes.add(addMyPlane(object3D, WHminMax, "wall", {scalar: 1}))
+
+            // wall at right
+            object3D.position.set(x + 2, y + 1.5, z)
+            setAngles(object3D, -Math.PI / 2, 0, -Math.PI / 2)
+            groupArtificialPlanes.add(addMyPlane(object3D, WHminMax, "wall", {scalar: 1}))
+
+            // wall at left
+            object3D.position.set(x - 2, y + 1.5, z)
+            setAngles(object3D, -Math.PI / 2, 0, Math.PI / 2)
+            groupArtificialPlanes.add(addMyPlane(object3D, WHminMax, "wall", {scalar: 1}))
+
+            // table at front
+            object3D.position.set(x + 0, y + 0.3, z - 2)
+            object3D.quaternion.setFromEuler(new THREE.Euler( 0, Math.PI ,  Math.PI, 'XYZ'));
+            groupArtificialPlanes.add(addMyPlane(object3D, WHminMax, "table", {scalar: 0.6}))
+
+            // table at back
+            object3D.position.set(x + 0, y + 0.3, z + 2)
+            object3D.quaternion.setFromEuler(new THREE.Euler( 0, 0, Math.PI , 'XYZ'));
+            groupArtificialPlanes.add(addMyPlane(object3D, WHminMax, "table", {scalar: 0.6}))
+
+
+            groupArtificialPlanes = new Set()
+            mapGroupArtificialPlanes.set(1, groupArtificialPlanes)
+
+            // wall at front left
+            object3D.position.set(x - 1.3, y + 1.5, z - 3)
+            setAngles(object3D, Math.PI / 2, Math.PI, Math.PI / 4)
+            groupArtificialPlanes.add(addMyPlane(object3D, WHminMax, "wall", {scalar: 1, myScalarSignsForVideos: {x: -1, y: 1, z: 1} }))
+
+            // wall at front right
+            object3D.position.set(x + 1.3, y + 1.5, z - 3)
+             setAngles(object3D, Math.PI / 2, Math.PI, -Math.PI / 4)
+            object3D.myScalarSignsForVideos = {x: -1, y: -1, z: -1}
+            groupArtificialPlanes.add(addMyPlane(object3D, WHminMax, "wall", {scalar: 1, myScalarSignsForVideos: {x: -1, y: 1, z: 1} }))
+
+            // wall at back right
+            object3D.position.set(x - 1.3, y + 1.5, z + 3)
+             setAngles(object3D, Math.PI / 2, Math.PI, -Math.PI / 4)
+            groupArtificialPlanes.add(addMyPlane(object3D, WHminMax, "wall", {scalar: 1}))
+
+            // wall at back left
+            object3D.position.set(x + 1.3, y + 1.5, z + 3)
+             setAngles(object3D, Math.PI / 2, Math.PI, Math.PI / 4)
+            groupArtificialPlanes.add(addMyPlane(object3D, WHminMax, "wall", {scalar: 1}))
+
+            // wall at right
+            object3D.position.set(x + 2, y + 1.5, z)
+            object3D.quaternion.setFromEuler(new THREE.Euler( -Math.PI / 2, 0, -Math.PI / 2 , 'XYZ'));
+            groupArtificialPlanes.add(addMyPlane(object3D, WHminMax, "wall", {scalar: 0.8}))
+
+            // wall at left
+            object3D.position.set(x - 2, y + 1.5, z)
+            object3D.quaternion.setFromEuler(new THREE.Euler( -Math.PI / 2, 0, Math.PI / 2 , 'XYZ'));
+            groupArtificialPlanes.add(addMyPlane(object3D, WHminMax, "wall", {scalar: 0.8}))
+
+            // table at right left
+            object3D.position.set(x + 2, y - 0.3, z - 1)
+            object3D.quaternion.setFromEuler(new THREE.Euler( 0, Math.PI ,  Math.PI, 'XYZ'));
+            groupArtificialPlanes.add(addMyPlane(object3D, WHminMax, "table", {scalar: 0.5}))
+
+            // table at right right
+            object3D.position.set(x + 2, y - 0.3, z + 1)
+            object3D.quaternion.setFromEuler(new THREE.Euler( 0, Math.PI ,  Math.PI, 'XYZ'));
+            groupArtificialPlanes.add(addMyPlane(object3D, WHminMax, "table", {scalar: 0.5}))
+
+
+            // table at left left
+            object3D.position.set(x - 2, y - 0.3, z - 1)
+            object3D.quaternion.setFromEuler(new THREE.Euler( 0, Math.PI ,  Math.PI, 'XYZ'));
+            groupArtificialPlanes.add(addMyPlane(object3D, WHminMax, "table", {scalar: 0.5}))
+
+            // table at left right
+            object3D.position.set(x - 2, y - 0.3, z + 1)
+            object3D.quaternion.setFromEuler(new THREE.Euler( 0, Math.PI ,  Math.PI, 'XYZ'));
+            groupArtificialPlanes.add(addMyPlane(object3D, WHminMax, "table", {scalar: 0.5}))
+
+
+
+
+        artificialPlanesShowing(hasPlaneDetection ? 0 : 1)
+        }
+//------------------------------
+function setAngles(object3D, x, y, z, XZY = "XYZ")
+{
+     object3D.quaternion.setFromEuler(new THREE.Euler( x, y, z , XZY));
+    // object3D.rotateX(x)
+    // object3D.rotateY(y)
+     //object3D.rotateZ(z)
+}
+//------------------------------
+window.artificialPlanesShowing = function(state = lastState_artificialPlanesShowing)
+{
+
+    if(lastState_artificialPlanesShowing === undefined)
+    {
+        lastState_artificialPlanesShowing = localStorage.getItem("lastState_artificialPlanesShowing")
+        if(lastState_artificialPlanesShowing !== null)
+            state = parseInt(lastState_artificialPlanesShowing)
+        else if(state === undefined)
+            state = 0
+    }
+
+    if(state >= mapGroupArtificialPlanes.size)
+        state = 0
+    lastState_artificialPlanesShowing = state
+    localStorage.setItem("lastState_artificialPlanesShowing", lastState_artificialPlanesShowing)
+    for(let [num, groupArtificialPlanes] of  mapGroupArtificialPlanes)
+      for(let entity of groupArtificialPlanes)
+      {
+          const addedNOTdestroyed = num === state
+          entity.myObject.makeVisible(addedNOTdestroyed && showingWallsAndTable)
+          if(addedNOTdestroyed)
+              mapEntityIDtoMyPlane.set(entity.myObject.id, entity)
+          else
+          {
+              removeEntitiesFromPlane(entity.myObject.mapIDtoObjects.values())
+              mapEntityIDtoMyPlane.delete(entity.myObject.id)
+          }
+      }
+
+    rearrangeVideosNotPlacedManually()
+
+}
+//------------------------------
+function rearrangeVideosNotPlacedManually()
+{
+
+   let entitiesNotInManualPositions = new Set()
+   for(let[id, entity] of mapEntityIDtoMyObject)
+       if(!entity.planeJoined
+         || entity.myObject.video.idOfPlaneWhereItWasPlacedManually !== entity.planeJoined.id)
+           entitiesNotInManualPositions.add(entity)
+
+    for(let i = 0; i < 20; i++)
+      if(!entitiesNotInManualPositions.size)
+         break
+      else
+        for(let [id, entity] of mapEntityIDtoMyPlane)
+          if(!entity.myObject.mapIDtoObjects.size || i === 1) //second pass accepts planes already with objects
+          {
+            let entitiesToPlace = new Set()
+            let idWhenAddedManually
+            for(let entityToPlace of entitiesNotInManualPositions)
+            if(!idWhenAddedManually
+                || idWhenAddedManually === entityToPlace.myObject.video.idOfPlaneWhereItWasPlacedManually)
+            {
+                entitiesToPlace.add(entityToPlace)
+                if(!idWhenAddedManually)
+                    idWhenAddedManually = entityToPlace.myObject.video.idOfPlaneWhereItWasPlacedManually
+            }
+            if(entitiesToPlace.size)
+            {
+                joinEntitiesToPlane(entity.myObject, entitiesToPlace)
+                for(let entity2 of entitiesToPlace)
+                    entitiesNotInManualPositions.delete(entity2)
+            }
+            else break
+          }
+
+    //were not placed normally because there are no planes!!!
+    let num = 0
+    for(let entity of entitiesNotInManualPositions)
+     {
+         entity.object3D.position.set((num % 10) * 0.33, 1 + Math.floor(num / 10) * 0.33, -1)
+         if(entity.object3D.before_myScalarSignsForVideos)
+            {
+             entity.object3D.scale.copy(entity.object3D.before_myScalarSignsForVideos)
+             entity.object3D.quaternion.copy(entity.object3D.before_myQuaternionSignsForVideos)
+            }
+         num++
+     }
+
+}
 //------------------------------
   function calculateWidthHeightAreaFromPolygon(polygon)
   {
@@ -1319,8 +1584,39 @@ myAirVideos_afterWorldCreate()
 
     return WHminMax
   }
+//------------------------------
+  function calculateWidthHeightAreaFromPlane(plane)
+  {
+
+  let WHminMax = {}
+
+  let minX = plane.position.x
+  let maxX = plane.position.x + 3
+  let minY = plane.position.y
+  let maxY = plane.position.y + 0
+  let minZ = plane.position.z
+  let maxZ = plane.position.z + 2
+
+
+    WHminMax.myWidth = maxX - minX,
+    WHminMax.myDeep = maxY - minY, // In 3D this is technically "depth" (Z-axis)
+    WHminMax.myHeight = maxZ - minZ, // In 3D this is technically "depth" (Z-axis)
+    WHminMax.myCenterX = (minX + maxX) / 2,
+    WHminMax.myCenterY = (minY + maxY) / 2,
+    WHminMax.myCenterZ = (minZ + maxZ) / 2
+
+    WHminMax.myMinX = minX
+    WHminMax.myMaxX = maxX
+    WHminMax.myMinY = minY
+    WHminMax.myMaxY = maxY
+    WHminMax.myMinZ = minZ
+    WHminMax.myMaxZ = maxZ
+    WHminMax.myArea = WHminMax.myWidth * WHminMax.myHeight
+
+    return WHminMax
+  }
 //-----------------------------------------------------------
-window.addBorderToMesh = function (targetMesh, color = 0xffff00, parent) {
+window.addBorderToMesh = function (targetMesh, color = 0xffff00) {
   const edgesGeom = new THREE.EdgesGeometry(targetMesh.geometry);
   const edgesMat = new THREE.LineBasicMaterial({
         color: color
@@ -1351,9 +1647,9 @@ window.addBorderToMesh = function (targetMesh, color = 0xffff00, parent) {
 
   if (parent)
   {
-    if (parent.edges)
-      targetMesh.remove(parent.edges)
-    parent.edges = edges;
+    if (targetMesh.edges)
+      targetMesh.remove(targetMesh.edges)
+    targetMesh.edges = edges
   }
   targetMesh.add(edges);
 
@@ -1391,7 +1687,7 @@ function alignMeshToPlane(mesh, planeEntity, offset = 0.01)
   mesh.position.addScaledVector(normal, offset);
 }
 //-----------------------------------------------------------
-function getObjectsSelected(groupName, subGroupName, exceptThisEntity, selected, placed)
+function getObjectsSelected(groupName, subGroupName, exceptThisEntity, selected, placed, exceptThisPlaneJoined)
 {
   let entities = new Set()
   for(let [id, entity] of mapEntityIDtoMyObject)
@@ -1400,6 +1696,7 @@ function getObjectsSelected(groupName, subGroupName, exceptThisEntity, selected,
         && (placed === undefined || placed === entity.placed)
         && (!groupName || groupName === entity.myObject.video.groupName)
         && (!subGroupName || subGroupName === entity.myObject.video.subGroupName)
+        && (!exceptThisPlaneJoined || entity.planeJoined !== exceptThisPlaneJoined)
     )
       entities.add(entity)
 
@@ -1445,34 +1742,51 @@ if(entities)
 
 }
 //-----------------------------------------------------------
-function joinEntitiesToPlane(plane, entities)
+function joinEntitiesToPlane(plane, entities, userPlacedNOTautomatic)
 {
   if(!entities.size)
     return
 
-  let planesToRearrange = new Set()
 
   for(let entity of entities)
   if(entity.planeJoined !== plane)
   {
     entity.placed = true
     if(entity.planeJoined)
-    {
-        entity.planeJoined.mapIDtoObjects.delete(entity.object3D.id)
-        entity.planeJoined.persistentInfo.videoCodes = entity.planeJoined.persistentInfo.videoCodes.replaceAll(" " + entity.myObject.video.code + " ", "")
-        planesToRearrange.add(entity.planeJoined)
-    }
+        removeEntityFromPlane(entity)
     plane.mapIDtoObjects.set(entity.object3D.id, entity)
     entity.planeJoined = plane
     plane.persistentInfo.videoCodes += " " + entity.myObject.video.code + " "
+    if(userPlacedNOTautomatic)
+        entity.myObject.video.idOfPlaneWhereItWasPlacedManually = entity.planeJoined.id //so that objects from same plane can be rearranged
   }
+
+if(userPlacedNOTautomatic)
+   updateVideosIn2D_mine(true)
 
 MyPlane.storePlanesPersistentInfo()
 
-for(let plane2 of planesToRearrange)
-  plane2.rearrangeObjects()
-
 plane.rearrangeObjects()
+}
+
+//-------------------------------------------------------------------
+function removeEntityFromPlane(entity)
+{
+    if(!entity || !entity.planeJoined)
+      return
+
+    let planesToRearrange = new Set()
+    entity.planeJoined.mapIDtoObjects.delete(entity.object3D.id)
+    entity.planeJoined.persistentInfo.videoCodes = entity.planeJoined.persistentInfo.videoCodes.replaceAll(" " + entity.myObject.video.code + " ", "")
+    entity.planeJoined.rearrangeObjects()
+    entity.planeJoined = undefined
+
+}
+//-------------------------------------------------------------------
+function removeEntitiesFromPlane(entities)
+{
+    for(let entity of entities)
+      removeEntityFromPlane(entity)
 }
 //-------------------------------------------------------------------
 function getWorldCenter(entity) {
@@ -1727,16 +2041,13 @@ class TabletTouchSystem extends createSystem({
   }
 }
 //------------------------
-function positionDashboardAndShow(showNOTshow = true)
+function positionDashboardAndShow(showNOTshow = true, dashBoardOwner = DASHBOARD_WALL)
 {
     positionDashBoardNow = showNOTshow
     dashboardRoot.object3D.visible = showNOTshow
 
-    for(let entity of dashboardButtons)
-      if(showNOTshow)
-        entity.addComponent(Interactable);
-      else
-        entity.removeComponent(Interactable);
+    for(let [id, entity] of dashboardButtons)
+      entity.myObject.makeVisible(showNOTshow && dashBoardOwner.includes(id))
 }
 //------------------------
 class DashboardFollowSystem extends createSystem(
@@ -1919,7 +2230,23 @@ window.createTextTexture = function (text, config = {}) {
    return new Mesh(geometry, material)
 }
 //--------------------------------
+window.getWorld = function(){
+    return world
+}
+//--------------------------------
+function makeObject3Dvisible(object3D, visible)
+{
+    if(!object3D)
+        return
+    object3D.visible = visible
+    if(object3D.children)
+        for(let child of object3D.children)
+            makeObject3Dvisible(child, visible)
 
+    makeObject3Dvisible(object3D.edges)
+
+
+}
 
 
 window.MyPlane = MyPlane
