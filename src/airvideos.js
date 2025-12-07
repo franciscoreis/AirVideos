@@ -1675,9 +1675,7 @@ function importFirebaseJS() {
 //------------------------------------
 function afterImportFirebaseJS() {
     const config = {
-        apiKey: "AIzaSyDTu8YQEeGUVSTIaIFjMgZ1k-WxvT4Ar54",
-        authDomain: "go-for-tapalife-project.firebaseapp.com",
-        databaseURL: "https://go-for-tapalife-project-default-rtdb.firebaseio.com",
+        
         projectId: "go-for-tapalife-project",
         storageBucket: "go-for-tapalife-project.appspot.com",
         messagingSenderId: "189552881657",
