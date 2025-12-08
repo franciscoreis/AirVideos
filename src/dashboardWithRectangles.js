@@ -40,10 +40,13 @@ export function createDashboard(world) {
   const spacing = 0.05;
 
   const buttonsConfig = [
-    { id: 'exit',     label: 'Exit',     x: -0.4 , bgColor: "red"},
-    { id: 'remove', label: 'Remove', x:  0.0 , bgColor: "#1591EA" },
-    { id: 'artificial_walls', label: 'walls', x:  0.0 , bgColor: "#1591EA" },
-    { id: 'close',    label: 'Close',    x:  0.4 , bgColor: "#FFDE21" },
+    { id: 'exit',     label: 'Exit', x: -0.4, y: 0, bgColor: "red"},
+    { id: 'remove', label: 'Remove', x:  0.0, y: 0, bgColor: "#1591EA" },
+    { id: 'artificial_walls', label: 'walls', x:  0.0, y: 0, bgColor: "#1591EA" },
+    { id: 'play', label: 'play', x: 0.0, y: 0, bgColor: "#008800" },
+    { id: 'pause', label: 'pause', x:  0.0, y: 0.1, bgColor: "#444400" },
+    { id: 'maximize', label: 'maximize', x:  0.0, y: -0.1,  bgColor: "#008800" },
+    { id: 'close',    label: 'Close',    x:  0.4, y: 0, bgColor: "#FFDE21" },
   ];
 
   const geometry = new PlaneGeometry(buttonWidth, buttonHeight);
@@ -53,7 +56,7 @@ export function createDashboard(world) {
     //const material = new MeshBasicMaterial({ color: 0x444444 }); // base color
     const mesh = createTextTexture(cfg.label, {width: 300, height: 100, bgColor: cfg.bgColor})
 
-    mesh.position.set(cfg.x, 0, 0); // arranged horizontally
+    mesh.position.set(cfg.x, cfg.y, 0); // arranged horizontally
 
     const buttonEntity = world
       .createTransformEntity(mesh)

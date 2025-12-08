@@ -138,27 +138,30 @@ const THREE = {
 }
 window.THREE = THREE
 
-var mapEntityIDtoMyPlane = new Map()
-window.mapEntityIDtoMyPlane = mapEntityIDtoMyPlane
-var mapEntityIDtoMyObject = new Map()
-window.mapEntityIDtoMyObject = mapEntityIDtoMyObject
+window.mapEntityIDtoMyPlane = new Map() //all planes
+window.mapEntityIDtoMyDetectedPlane = new Map() //detected (not artificial)
+window.mapGroupArtificialPlanes = new Map() //artificial planes
 
-var mapWallTableIDtoPersistentInfo = new Map()
-window.mapWallTableIDtoPersistentInfo = mapWallTableIDtoPersistentInfo
+var planeSelected
+var hasPlaneDetection
+globalThis.lastState_artificialPlanesShowing //0 : detected planes, >= 1 : artificial planes
+
+
+window.mapEntityIDtoMyObject = new Map()
+
+window.mapWallTableIDtoPersistentInfo = new Map()
 var loaded_mapWallTableIDtoPersistentInfo = {}
 
 var positionDashBoardNow = false
 window.dashboardButtons = new Map()
 
-var planeSelected
-var hasPlaneDetection
-var mapGroupArtificialPlanes = new Map()
-var lastState_artificialPlanesShowing
-
 const mapCodeToEntity = new Map()
 
 const DASHBOARD_WALL = ["exit", "remove", "close"]
 const DASHBOARD_ROBOT = ["exit", "artificial_walls", "close"]
+const DASHBOARD_VIDEO = ["exit", "play", "close"]
+const DASHBOARD_VIDEO_PLAYING = ["exit", "pause", "maximize", "close"]
+var dashBoard_owner_myObject
 
 var globalEntity
 
@@ -540,8 +543,6 @@ clicked()
 {
 const entity = this.entity
 
-if(!showingWallsAndTable)
-    return playThisCode(entity.myObject.video.code)
 
 
 let entitiesSelected= getObjectsSelected(this.video.groupName, this.video.subGroupName, undefined, true)
@@ -556,6 +557,11 @@ if(!entity.selected)
   if(!MyObjectVideo.firstEntityToBeSelected)
     MyObjectVideo.firstEntityToBeSelected = entity
 }
+else if(!showingWallsAndTable)
+  {
+    playThisCode(this.video.code, undefined, true)
+    positionDashboardAndShow(true, DASHBOARD_VIDEO_PLAYING, this)
+  }
 else if(MyObjectVideo.firstEntityToBeSelected && MyObjectVideo.firstEntityToBeSelected !== entity)
   this.select(false)
 else if(entitiesNotSelected.size < 1)
@@ -633,7 +639,7 @@ else //already selected
        if(entityObject.myObject.select(false))
            atLeastOne = true
     if(!dashboardRoot.object3D.visible)
-        positionDashboardAndShow(true)
+        positionDashboardAndShow(true, undefined, this)
     else if(!atLeastOne)
     {
      //change limitation or orientation
@@ -837,7 +843,7 @@ export class MyRobot extends MyObject {
     clicked()
     {
       showOrHideWallsTables()
-      positionDashboardAndShow(showingWallsAndTable, DASHBOARD_ROBOT)
+      positionDashboardAndShow(showingWallsAndTable, DASHBOARD_ROBOT, this)
       AudioUtils.play(this.entity)
     }
 
@@ -866,8 +872,21 @@ export class MyButton extends MyObject {
           positionDashboardAndShow(false)
           break
         case "artificial_walls":
-            artificialPlanesShowing(lastState_artificialPlanesShowing + 1)
+            artificialPlanesShowing(globalThis.lastState_artificialPlanesShowing + 1)
             break
+        case "play":
+              playThisCode(dashBoard_owner_myObject.video.code)
+              positionDashboardAndShow(true, DASHBOARD_VIDEO_PLAYING, dashBoard_owner_myObject)
+              break
+        case "pause":
+              pauseVideoPlayer()
+              positionDashboardAndShow(true, DASHBOARD_VIDEO, dashBoard_owner_myObject)
+              break
+        case "maximize":
+              positionDashboardAndShow(false)
+              endWebXR()
+              maximizeMinimizeVideoPlayer(true)
+              break
         case "close":
           positionDashboardAndShow(false)
           break
@@ -903,7 +922,10 @@ class PlaneLoggerSystem extends createSystem({
     if(true || this.plane.semanticLabel === "wall" || this.plane.semanticLabel === "table")
       if(this.plane.semanticLabel !== "floor") //dangerous for user no longer see where he is walking!
       {
-          addMyPlane(entity.object3D, WHminMax, this.plane.semanticLabel)
+         const myPlane = addMyPlane(entity.object3D, WHminMax, this.plane.semanticLabel)
+         mapEntityIDtoMyDetectedPlane.set(myPlane.myObject.id, myPlane)
+         if(mapEntityIDtoMyDetectedPlane.size === 1) //first
+             artificialPlanesShowing(0, true) //hides artifical planes
       }
 
     });
@@ -911,16 +933,15 @@ class PlaneLoggerSystem extends createSystem({
     // Called when a plane is removed/lost
     this.queries.planes.subscribe('disqualify', (entity) => {
 
-      let myDetectedPlaneEntity
       for(let [id, entityLoop] of mapEntityIDtoMyPlane)
         if(entity.object3D.uuid === entityLoop.original_object3D.uuid)
           {
-              myDetectedPlaneEntity = entityLoop
+              const myDetectedPlaneEntity = entityLoop
+              mapEntityIDtoMyDetectedPlane.delete(myDetectedPlaneEntity.myObject.id)
+              myDetectedPlaneEntity.myObject.removeFromScene()
               break
           }
 
-      if(myDetectedPlaneEntity)
-          myDetectedPlaneEntity.myObject.removeFromScene()
 
       // Clean up any content attached to this plane if needed
     });
@@ -1461,22 +1482,22 @@ function setAngles(object3D, x, y, z, XZY = "XYZ")
      //object3D.rotateZ(z)
 }
 //------------------------------
-window.artificialPlanesShowing = function(state = lastState_artificialPlanesShowing)
+window.artificialPlanesShowing = function(state = globalThis.lastState_artificialPlanesShowing, doNotRearrange)
 {
 
-    if(lastState_artificialPlanesShowing === undefined)
+    if(globalThis.lastState_artificialPlanesShowing === undefined)
     {
-        lastState_artificialPlanesShowing = localStorage.getItem("lastState_artificialPlanesShowing")
-        if(lastState_artificialPlanesShowing !== null)
-            state = parseInt(lastState_artificialPlanesShowing)
+        globalThis.lastState_artificialPlanesShowing = localStorage.getItem("lastState_artificialPlanesShowing")
+        if(globalThis.lastState_artificialPlanesShowing !== null)
+            state = parseInt(globalThis.lastState_artificialPlanesShowing)
         else if(state === undefined)
             state = 0
     }
 
     if(state >= mapGroupArtificialPlanes.size)
         state = 0
-    lastState_artificialPlanesShowing = state
-    localStorage.setItem("lastState_artificialPlanesShowing", lastState_artificialPlanesShowing)
+    globalThis.lastState_artificialPlanesShowing = state
+    localStorage.setItem("lastState_artificialPlanesShowing", globalThis.lastState_artificialPlanesShowing)
     for(let [num, groupArtificialPlanes] of  mapGroupArtificialPlanes)
       for(let entity of groupArtificialPlanes)
       {
@@ -1491,7 +1512,8 @@ window.artificialPlanesShowing = function(state = lastState_artificialPlanesShow
           }
       }
 
-    rearrangeVideosNotPlacedManually()
+    if(!doNotRearrange)
+      rearrangeVideosNotPlacedManually()
 
 }
 //------------------------------
@@ -2041,10 +2063,12 @@ class TabletTouchSystem extends createSystem({
   }
 }
 //------------------------
-function positionDashboardAndShow(showNOTshow = true, dashBoardOwner = DASHBOARD_WALL)
+function positionDashboardAndShow(showNOTshow = true, dashBoardOwner = DASHBOARD_WALL, myObjectOwner)
 {
     positionDashBoardNow = showNOTshow
     dashboardRoot.object3D.visible = showNOTshow
+
+    dashBoard_owner_myObject = showNOTshow ? myObjectOwner : undefined
 
     for(let [id, entity] of dashboardButtons)
       entity.myObject.makeVisible(showNOTshow && dashBoardOwner.includes(id))

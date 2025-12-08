@@ -10,6 +10,7 @@ const VideosCut = {
 
 var userLanguage = navigator.language //future local AI translations (may be set after Login)
 
+
 const mapYoutubeCodesToInfo = new Map()
 const mapBaseAppID_to_AirVideo = new Map()
 
@@ -17,6 +18,7 @@ var CLICKED_BY_ENTITY_NOT_TOUCH = true //IMPORTANT: changes to false to avoid tw
 
 var global_player
 var lastCodePlayed
+var lastCodePaused
 
 var gamingMode = false
 var hostGamingAppID
@@ -1675,7 +1677,8 @@ function importFirebaseJS() {
 //------------------------------------
 function afterImportFirebaseJS() {
     const config = {
-        
+        authDomain: "go-for-tapalife-project.firebaseapp.com",
+        databaseURL: "https://go-for-tapalife-project-default-rtdb.firebaseio.com",
         projectId: "go-for-tapalife-project",
         storageBucket: "go-for-tapalife-project.appspot.com",
         messagingSenderId: "189552881657",
@@ -1764,7 +1767,7 @@ function registerThisFirebaseChannel(channelName, listeningMode = 1, callThisIns
     } else {
     }
 
-    sendToGaming("ASKING_ALL_INFO")
+    sendToGaming("ASKING_ALL_INFO", mapYoutubeCodesToInfo_command("CODES", true))
 
 
     return true
@@ -2008,6 +2011,8 @@ function processGamingCommand(command, toUsers, userUUID, userName, p1, p2) {
                 sendToGaming("RESPONSE_ALL_INFO", mapYoutubeCodesToInfo_command("CODES", true));
             else if(lastCodePlayed) //host
                 sendToGaming("PLAY " + userUUID, lastCodePlayed)
+            otherUserInfo.YTcodes = p1
+            update_hostANDplayer_gamingDashBoard()
             return
         case "PLAY": playInPopover(p1, undefined, true) //does not maximize
             return
@@ -2297,9 +2302,9 @@ function showOrHideWallsTables(showNOThide) {
     if (showNOThide === undefined)
         showNOThide = !showingWallsAndTable
     showingWallsAndTable = showNOThide
-    for (let [id, entity] of mapEntityIDtoMyPlane)
-        entity.myObject.makeVisible(showingWallsAndTable)
-    artificialPlanesShowing()
+    for (let [id, entity] of mapEntityIDtoMyDetectedPlane) //detected planes
+        entity.myObject.makeVisible(showingWallsAndTable && globalThis.lastState_artificialPlanesShowing === 0)
+    artificialPlanesShowing(globalThis.lastState_artificialPlanesShowing, true) //artificial planes
 }
 //-------------------------------------------
 function ById(id) {
@@ -2427,12 +2432,19 @@ function myAirVideos_afterWorldCreate() {
         return initializeCastApi();
 
 }
-
 //----------------------------------------------------------------
-function playThisCode(code, popover = true) //strange but needed!!!
+function pauseVideoPlayer() //strange but needed!!!
+{
+  if (global_player)
+    global_player.pauseVideo()
+ lastCodePaused = lastCodePlayed
+ lastCodePlayed = undefined
+}
+//----------------------------------------------------------------
+function playThisCode(code, popover = true, doNotMaximize) //strange but needed!!!
 {
     if (popover)
-        return playInPopover(code)
+        return playInPopover(code, undefined, doNotMaximize)
 
 
     let s = "<center><table><tr><td>PLAY<br>VIDEO</td><td>&nbsp;</td><td><img src='" + getYoutubeImageURL(code) + "' style='height:40px'></tr></table>"
@@ -2467,7 +2479,6 @@ function maximizeMinimizeVideoPlayer(maximizeNOTminimize) {
 //-------------------------------------------------------------
 function playInPopover(code, notCodeStartORcodeWebXR, doNotMaximize) {
 
-
     if (code === CODE_START)
         document.getElementById("radio_start").checked = true
     else if (code === CODE_WEBXR)
@@ -2482,6 +2493,7 @@ function playInPopover(code, notCodeStartORcodeWebXR, doNotMaximize) {
     if(hostGamingApp)
         sendToGaming("PLAY", code)
 
+
     if (lastCodePlayed === code) {
 
         if(!doNotMaximize)
@@ -2493,9 +2505,10 @@ function playInPopover(code, notCodeStartORcodeWebXR, doNotMaximize) {
         return
     }
 
-    lastCodePlayed = code
 
-    if (global_player)
+    if(lastCodePaused === code)
+        global_player.playVideo()
+    else if (global_player)
         global_player.loadVideoById({
             videoId: code,
             // startSeconds: 30,
@@ -2512,6 +2525,9 @@ function playInPopover(code, notCodeStartORcodeWebXR, doNotMaximize) {
                 playsinline: 1
             }
         });
+
+    lastCodePlayed = code
+    lastCodePaused = undefined
 
 }
 
