@@ -2302,8 +2302,7 @@ function showOrHideWallsTables(showNOThide) {
     if (showNOThide === undefined)
         showNOThide = !showingWallsAndTable
     showingWallsAndTable = showNOThide
-    for (let [id, entity] of mapEntityIDtoMyDetectedPlane) //detected planes
-        entity.myObject.makeVisible(showingWallsAndTable && globalThis.lastState_artificialPlanesShowing === 0)
+    
     artificialPlanesShowing(globalThis.lastState_artificialPlanesShowing, true) //artificial planes
 }
 //-------------------------------------------

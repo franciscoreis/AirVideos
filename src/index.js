@@ -157,10 +157,10 @@ window.dashboardButtons = new Map()
 
 const mapCodeToEntity = new Map()
 
-const DASHBOARD_WALL = ["exit", "remove", "close"]
-const DASHBOARD_ROBOT = ["exit", "artificial_walls", "close"]
-const DASHBOARD_VIDEO = ["exit", "play", "close"]
-const DASHBOARD_VIDEO_PLAYING = ["exit", "pause", "maximize", "close"]
+const DASHBOARD_WALL = ["exit", "edit", "remove", "close", "x", "y", "z"]
+const DASHBOARD_ROBOT = ["exit", "edit", "artificial_walls", "close"]
+const DASHBOARD_VIDEO = ["exit", "edit", "play", "close"]
+const DASHBOARD_VIDEO_PLAYING = ["exit", "edit", "pause", "maximize", "close"]
 var dashBoard_owner_myObject
 
 var globalEntity
@@ -596,6 +596,7 @@ export class MyPlane extends MyObject
 clicked()
 {
 const entity = this.entity
+planeSelected = this
 const planesSelected = getPlanesSelected(entity, true) //all selected
 let entitiesSelected = getObjectsSelected(undefined, undefined, undefined, true, undefined, this) //selected outside this plane
 
@@ -613,7 +614,6 @@ if(entitiesSelected.size)
 
 if(!entity.selected)
 {
-  planeSelected = this
   entitiesCommand(planesSelected, "SELECT", false)
   this.select(true)
 
@@ -866,6 +866,9 @@ export class MyButton extends MyObject {
           positionDashboardAndShow(false)
           endWebXR()
           break
+        case "edit":
+          showOrHideWallsTables()
+          break
         case "remove":
           planeSelected.removeFromScene()
           planeSelected = undefined
@@ -890,6 +893,15 @@ export class MyButton extends MyObject {
         case "close":
           positionDashboardAndShow(false)
           break
+        case "x": planeSelected.myScalarSignsForVideos.x = -planeSelected.myScalarSignsForVideos.x
+            planeSelected.rearrangeObjects()
+            break
+        case "y": planeSelected.myScalarSignsForVideos.y = -planeSelected.myScalarSignsForVideos.y
+            planeSelected.rearrangeObjects()
+            break
+        case "z": planeSelected.myScalarSignsForVideos.z = -planeSelected.myScalarSignsForVideos.z
+            planeSelected.rearrangeObjects()
+            break
       }
 
 
@@ -959,6 +971,8 @@ class PlaneLoggerSystem extends createSystem({
          {
          const scalar = config.scalar || 1
 
+         if(!config.myScalarSignsForVideos)
+            config.myScalarSignsForVideos = {x: 1, y: 1, z: 1}
          const mesh = createDraggableMesh(WHminMax.myWidth, WHminMax.myHeight, undefined, true, 0);
 
           // 2. Turn it into an IWSDK entity that is interactable & draggable
@@ -1497,6 +1511,10 @@ window.artificialPlanesShowing = function(state = globalThis.lastState_artificia
     if(state >= mapGroupArtificialPlanes.size)
         state = 0
     globalThis.lastState_artificialPlanesShowing = state
+
+    for (let [id, entity] of mapEntityIDtoMyDetectedPlane) //detected planes
+        entity.myObject.makeVisible(showingWallsAndTable && state === 0)
+
     localStorage.setItem("lastState_artificialPlanesShowing", globalThis.lastState_artificialPlanesShowing)
     for(let [num, groupArtificialPlanes] of  mapGroupArtificialPlanes)
       for(let entity of groupArtificialPlanes)
@@ -2267,7 +2285,7 @@ function makeObject3Dvisible(object3D, visible)
         for(let child of object3D.children)
             makeObject3Dvisible(child, visible)
 
-    makeObject3Dvisible(object3D.edges)
+    makeObject3Dvisible(object3D.edges, visible)
 
 
 }

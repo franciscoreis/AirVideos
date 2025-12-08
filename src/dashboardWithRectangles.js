@@ -40,13 +40,17 @@ export function createDashboard(world) {
   const spacing = 0.05;
 
   const buttonsConfig = [
-    { id: 'exit',     label: 'Exit', x: -0.4, y: 0, bgColor: "red"},
+    { id: 'exit', label: 'Exit', x: -0.4, y: 0.075, bgColor: "red"},
+    { id: 'edit', label: 'Edit', x: -0.4, y: -0.075, bgColor: "red"},
     { id: 'remove', label: 'Remove', x:  0.0, y: 0, bgColor: "#1591EA" },
     { id: 'artificial_walls', label: 'walls', x:  0.0, y: 0, bgColor: "#1591EA" },
     { id: 'play', label: 'play', x: 0.0, y: 0, bgColor: "#008800" },
     { id: 'pause', label: 'pause', x:  0.0, y: 0.1, bgColor: "#444400" },
     { id: 'maximize', label: 'maximize', x:  0.0, y: -0.1,  bgColor: "#008800" },
     { id: 'close',    label: 'Close',    x:  0.4, y: 0, bgColor: "#FFDE21" },
+    { id: 'x', label: 'X mirror', x: 0.8, y: 0.09, bgColor: "blue"},
+    { id: 'y', label: 'Y mirror', x: 0.8, y: 0.0, bgColor: "blue"},
+    { id: 'z', label: 'Z mirror', x:  0.8, y: -0.09, bgColor: "blue" },
   ];
 
   const geometry = new PlaneGeometry(buttonWidth, buttonHeight);
