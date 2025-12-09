@@ -1,4 +1,4 @@
-# AirVideos - organize your YouTube videos and share them with friends!
+# AirVideos - organize YouTube videos, share them with friends!
 
 Add YouTube videos url or code one at a time or add groups of videos.
 
