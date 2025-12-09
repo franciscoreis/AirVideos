@@ -25,8 +25,8 @@ var hostGamingAppID
 var hostGamingApp
 
 const CODE_START = "_4w1G6CwLM0"
-const CODE_WEBXR = "_4w1G6CwLM0"
-const CODE_PLAY = "_4w1G6CwLM0"
+const CODE_WEBXR = "H1set6e4HRA"
+const CODE_PLAY = "PiFdL7xglOk"
 
 var played_CODE_PLAY = false
 
@@ -619,7 +619,8 @@ function menuForSelectedVideos(code) {
 
     let s =
         "<center><b>" + count + " selected</b>"
-        + "<br><br><button onClick='mapYoutubeCodesToInfo_command(\"UNSELECT\", true, true)'>Unselected all</button>"
+        + "<br><br><button onClick='mapYoutubeCodesToInfo_command(\"SELECT\", false, true)'>Select all</button>"
+        + "<br><br><button onClick='mapYoutubeCodesToInfo_command(\"UNSELECT\", true, true)'>Unselect all</button>"
         + "<br><br><button onClick='mapYoutubeCodesToInfo_command(\"DELETE\", true)' style='background:#fdd'>Delete selected</button>"
         + "<br>&nbsp;</center>"
     count ? showPopoverWithContent(s, "menuForSelectedVideos", true) : closePopover("menuForSelectedVideos")
@@ -638,6 +639,9 @@ function mapYoutubeCodesToInfo_command(command = "COUNT", selected, param1, para
                     break
                 case "UNSELECT":
                     selectORnotYoutubeCode(ytCode, false);
+                    break
+                case "SELECT":
+                    selectORnotYoutubeCode(ytCode, true);
                     break
                 case "COUNT":
                     break
@@ -727,7 +731,7 @@ function updateVideosIn2D_shared() {
                     + "<br><br><div id='div_for_gaming_hostANDplayer'></div>"
                     : "As a player, just select the videos in 2D or 3D."
                     + "<br><br>"
-                        + "<button onClick='selectMineNOTshared(true);if(!played_CODE_PLAY)playInPopover(\""+ CODE_PLAY +"\");played_CODE_PLAY=true;' style='background:green;color:white'>SELECT VIDEOS</button>"
+                        + "<button onClick='selectMineNOTshared(true);maximizeMinimizeVideoPlayer(false);if(!played_CODE_PLAY)playInPopover(\""+ CODE_PLAY +"\");played_CODE_PLAY=true;' style='background:green;color:white'>SELECT VIDEOS</button>"
                         + " &nbsp; <button onClick='shareLinkToObject(undefined, \"" + location.href + "\")'>invite more players</button>"
                     + "<br><br><div id='div_for_gaming_hostANDplayer'></div>"
             )
@@ -2492,7 +2496,7 @@ function playInPopover(code, notCodeStartORcodeWebXR, doNotMaximize) {
     document.getElementById(radioPopupID).checked = true
 
     const isCodeStartOrCodeWebXR = code === CODE_START || code === CODE_WEBXR
-    if (!code || (isCodeStartOrCodeWebXR && notCodeStartORcodeWebXR))
+    if (!code)
         return showMessageErrorOnSOSforDuration("Please, click on an available video!")
 
     if(hostGamingApp)

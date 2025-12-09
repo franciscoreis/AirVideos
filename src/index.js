@@ -157,6 +157,8 @@ window.dashboardButtons = new Map()
 
 const mapCodeToEntity = new Map()
 
+const SET_PLANE_DETECTION = undefined //undefined then reads from xrSession
+
 const DASHBOARD_WALL = ["exit", "edit", "remove", "close", "x", "y", "z"]
 const DASHBOARD_ROBOT = ["exit", "edit", "artificial_walls", "close"]
 const DASHBOARD_VIDEO = ["exit", "edit", "play", "close"]
@@ -705,20 +707,21 @@ static importVideosFromLoadedPlanesToCurrentPlanes()
     return
 
   for(let [planeID, persistentInfo] of window.loaded_mapWallTableIDtoPersistentInfo)
-    {
+  {
       let entities = new Set()
-      for(let [id, entity] of mapEntityIDtoMyObject)
-         if(!entity.placed && persistentInfo.videoCodes.indexOf(" " + entity.myObject.video.code + " ") !== -1)
-           entities.add(entity)
+      for (let [id, entity] of mapEntityIDtoMyObject)
+        if (!entity.placed && persistentInfo.videoCodes.indexOf(" " + entity.myObject.video.code + " ") !== -1)
+          entities.add(entity)
 
       if(entities.size)
       {
-
       let bestPlaneEntity
       let areaDifference = Infinity
+
       for(let [id, entity] of mapEntityIDtoMyPlane)
          if( !entity.myObject.mapIDtoObjects.size  //empty
-             && entity.myObject.label === persistentInfo.label) //wall to wall, table to table
+             && entity.myObject.label === persistentInfo.label
+             ) //wall to wall, table to table
          {
            const aDif = Math.abs(persistentInfo.area - entity.myObject.WHminMax.myArea)
            if(aDif < areaDifference)
@@ -727,8 +730,9 @@ static importVideosFromLoadedPlanesToCurrentPlanes()
              areaDifference = aDif
            }
          }
+      const entitiesWithNoPlane = new Set()
       if(bestPlaneEntity)
-        joinEntitiesToPlane(bestPlaneEntity.myObject, entities)
+           joinEntitiesToPlane(bestPlaneEntity.myObject, entities)
 
       }
     }
@@ -931,14 +935,15 @@ class PlaneLoggerSystem extends createSystem({
     console.log('Plane detected:' + this.plane.semanticLabel + " " + WHminMax.myArea.toFixed(2) + " = " + WHminMax.myWidth.toFixed(2) + " x " + WHminMax.myHeight.toFixed(2), this.id) //, entity.object3D?.position);
 
 
-    if(true || this.plane.semanticLabel === "wall" || this.plane.semanticLabel === "table")
-      if(this.plane.semanticLabel !== "floor") //dangerous for user no longer see where he is walking!
-      {
+    if(SET_PLANE_DETECTION !== false)
+      if(true || this.plane.semanticLabel === "wall" || this.plane.semanticLabel === "table")
+        if(this.plane.semanticLabel !== "floor") //dangerous for user no longer see where he is walking!
+        {
          const myPlane = addMyPlane(entity.object3D, WHminMax, this.plane.semanticLabel)
          mapEntityIDtoMyDetectedPlane.set(myPlane.myObject.id, myPlane)
          if(mapEntityIDtoMyDetectedPlane.size === 1) //first
              artificialPlanesShowing(0, true) //hides artifical planes
-      }
+        }
 
     });
 
@@ -1125,14 +1130,16 @@ class XRSessionLifecycleSystem extends createSystem({}, {})
         window.xrSession = world.session
         myAirVideos_afterSessionStarts()
 
-        createArtificialPlanes()
-
       console.log('[IWSDK] XR session started');
 
 
       closePopover()
 
-      hasPlaneDetection = world.session.enabledFeatures.includes('plane-detection')
+      hasPlaneDetection = SET_PLANE_DETECTION !== undefined ? SET_PLANE_DETECTION : world.session.enabledFeatures.includes('plane-detection')
+
+      createArtificialPlanes() //after hasPlaneDetection = ...
+
+
 
       // Check strictly what is enabled
       if(USE_ANCHORS)
@@ -1485,7 +1492,7 @@ function createArtificialPlanes()
 
 
 
-        artificialPlanesShowing(hasPlaneDetection ? 0 : 1)
+        artificialPlanesShowing(hasPlaneDetection !== false ? 0 : 1)
         }
 //------------------------------
 function setAngles(object3D, x, y, z, XZY = "XYZ")
@@ -1508,7 +1515,9 @@ window.artificialPlanesShowing = function(state = globalThis.lastState_artificia
             state = 0
     }
 
-    if(state >= mapGroupArtificialPlanes.size)
+    if(hasPlaneDetection === false && state === 0)
+        state = 1
+    else if(state >= mapGroupArtificialPlanes.size)
         state = 0
     globalThis.lastState_artificialPlanesShowing = state
 
@@ -1544,30 +1553,37 @@ function rearrangeVideosNotPlacedManually()
          || entity.myObject.video.idOfPlaneWhereItWasPlacedManually !== entity.planeJoined.id)
            entitiesNotInManualPositions.add(entity)
 
+
+    const sorted_mapEntityIDtoMyPlane = new Map(Array.from(mapEntityIDtoMyPlane).sort((a, b) => b[1].myObject.WHminMax.myArea - a[1].myObject.WHminMax.myArea))
+
+
     for(let i = 0; i < 20; i++)
       if(!entitiesNotInManualPositions.size)
          break
       else
-        for(let [id, entity] of mapEntityIDtoMyPlane)
-          if(!entity.myObject.mapIDtoObjects.size || i === 1) //second pass accepts planes already with objects
+        for(let [id, entity] of sorted_mapEntityIDtoMyPlane)
+          if(entity.myObject.label !== "floor"
+               && (entity.myObject.label === "wall" || i > 5) //prioritize walls
+              )
+           if(!entity.myObject.mapIDtoObjects.size || i > 15) //from certain pass accepts planes already with objects
           {
             let entitiesToPlace = new Set()
             let idWhenAddedManually
             for(let entityToPlace of entitiesNotInManualPositions)
-            if(!idWhenAddedManually
+            if(i > 10 || !entityToPlace.planeJoined || entityToPlace.planeJoined.label === entity.myObject.label)
+              if(!idWhenAddedManually
                 || idWhenAddedManually === entityToPlace.myObject.video.idOfPlaneWhereItWasPlacedManually)
-            {
+              {
                 entitiesToPlace.add(entityToPlace)
                 if(!idWhenAddedManually)
                     idWhenAddedManually = entityToPlace.myObject.video.idOfPlaneWhereItWasPlacedManually
-            }
+              }
             if(entitiesToPlace.size)
             {
                 joinEntitiesToPlane(entity.myObject, entitiesToPlace)
                 for(let entity2 of entitiesToPlace)
                     entitiesNotInManualPositions.delete(entity2)
             }
-            else break
           }
 
     //were not placed normally because there are no planes!!!
@@ -1792,8 +1808,7 @@ function joinEntitiesToPlane(plane, entities, userPlacedNOTautomatic)
   if(entity.planeJoined !== plane)
   {
     entity.placed = true
-    if(entity.planeJoined)
-        removeEntityFromPlane(entity)
+    removeEntityFromPlane(entity)
     plane.mapIDtoObjects.set(entity.object3D.id, entity)
     entity.planeJoined = plane
     plane.persistentInfo.videoCodes += " " + entity.myObject.video.code + " "
